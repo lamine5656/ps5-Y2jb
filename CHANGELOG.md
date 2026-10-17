@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.2.2-l92 (dashboard icon diagnostics)
+- App icon write now unlinks the old file first, writes, then re-reads and byte-compares
+- Explicit notifications: "VERIFIED on disk (reboot to refresh)" or "[ERROR] write FAILED (sandbox block?)"
+- Covers both update flows (USB update package and per-boot icon sync)
+
 ## v1.2.1-l92 (background fix)
 - Cobalt cannot reliably load relative image files -> HUD background + icon are now embedded as data-URLs (jpeg 1080p q80 + png 256, ~420 KB) directly in main.js
 - No dependency on file loading at UI paint time anymore: background always renders on every firmware/app combo

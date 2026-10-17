@@ -137,13 +137,35 @@ async function start_icon_update() {
         }
 
         if (!areIdentical) {
-            log("Icons are different. Updating icon...");
+            log("App icon: writing " + newIcon.size + " bytes to appmeta...");
+            // unlink first so any stale cache mapping does not shadow the rewrite
+            const un_ret = syscall(SYSCALL.unlink, alloc_string(iconPath));
+            if (un_ret !== 0n) {
+                log("[WARN] unlink existing icon0 returned " + toHex(un_ret));
+            }
             const writeSuccess = write_buffer_to_file(iconPath, newIcon.buffer, newIcon.size);
             if (writeSuccess) {
-                log("Icon updated successfully at: " + iconPath);
-                send_notification("Icon updated successfully.");
+                try {
+                    const rb = read_file_to_buffer(iconPath);
+                    const sizeOK = (rb.size === newIcon.size);
+                    let contentOK = false;
+                    if (sizeOK) {
+                        contentOK = compare_buffers(rb.buffer, newIcon.buffer, Math.min(rb.size, newIcon.size));
+                    }
+                    if (sizeOK && contentOK) {
+                        log("App icon VERIFIED on disk (" + rb.size + " bytes). Dashboard icon refreshes after console reboot.");
+                        send_notification("App icon updated (reboot to refresh).");
+                    } else {
+                        log("[ERROR] App icon readback mismatch: size_ok=" + sizeOK + " content_ok=" + contentOK);
+                        send_notification("[ERROR] App icon verification failed");
+                    }
+                } catch (verr) {
+                    log("[ERROR] App icon readback failed: " + (verr && verr.message ? verr.message : String(verr)));
+                    send_notification("[ERROR] App icon readback failed (write may be blocked)");
+                }
             } else {
-                log("Failed to update icon at: " + iconPath);
+                log("[ERROR] App icon write to appmeta FAILED. If it repeats every boot, the sandbox blocks /user/appmeta writes.");
+                send_notification("[ERROR] App icon write FAILED (sandbox block?)");
             }
         } else {
             log("Icons are identical. No update needed.");
