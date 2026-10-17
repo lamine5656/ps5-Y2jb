@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.2.0 (speed + HUD edition)
+- **Major speed**: native bulk-memory path (`addr_to_u8copy`) replaces per-byte fake-RW loops
+  - update zip decompress feed, extracted file writes (zero-copy via `get_backing_store`), icon compare — orders of magnitude faster (was: millions of read8/write8 calls)
+- **Major speed**: `log()` no longer forces a paint per message (batched rAF flush) — whole exploit chain runs visibly faster
+- Faster boot: log-server probe timeout 800ms -> 250ms; inter-stage delay 1s -> 0.7s
+- Brand-new HUD "Ops Console" UI (sharp military-HUD design, mint/amber): runtime log terminal, live mission checklist, big percentage readout + segmented bar, scanline, corner brackets, ticker footer
+- Steps HUD driven by real stages (BOOT/EXPLOIT/KERNEL/UPDATE/PAYLOAD) with explicit stage calls injected in the main flow
+
 ## v1.1.0 (L92 UI + stability edition)
 - New modern UI (space/neon theme using custom `background.png` + custom `icon0.png`)
 - Stability: retry primitive acquisition stage up to 3 attempts with full GC between tries

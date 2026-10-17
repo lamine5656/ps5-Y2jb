@@ -49,7 +49,7 @@ let LOG_SERVER = 'http://192.168.1.180:8080/log';
 async function checkLogServer() {
     try {
         const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Timeout')), 800)
+            setTimeout(() => reject(new Error('Timeout')), 250)
         );
         
         const fetchPromise = fetch(LOG_SERVER, {
@@ -76,6 +76,23 @@ const fontSize = Math.floor((baseHeight / maxLines * 0.85) * scale);
 const leftPadding = Math.floor((baseWidth * 0.005) * scale);
 const topPadding = Math.floor((baseHeight * 0.005) * scale);
 
+// Low-overhead logging: DOM appended synchronously, decoupled from paint.
+// (previously: one rAF + setTimeout per message = forced paint on every log call)
+let _logFlushScheduled = false;
+function _schedule_log_flush() {
+    if (_logFlushScheduled) return;
+    _logFlushScheduled = true;
+    requestAnimationFrame(() => {
+        _logFlushScheduled = false;
+        if (outputElement) {
+            while (outputElement.children.length > maxLines) {
+                outputElement.removeChild(outputElement.children[0]);
+            }
+            outputElement.scrollTop = outputElement.scrollHeight;
+        }
+    });
+}
+
 async function log(msg) {
     let message = String(msg);
     if (!outputElement) {
@@ -83,6 +100,7 @@ async function log(msg) {
         if (!outputElement) {
             outputElement = document.createElement('div');
             outputElement.id = 'output';
+            outputElement.style.fontSize = fontSize + 'px';
             document.body.appendChild(outputElement);
         }
         outputElement.style.paddingLeft = leftPadding + 'px';
@@ -90,23 +108,16 @@ async function log(msg) {
     }
     
     const lines = message.split('\n');
-    lines.forEach(line => {
-        let lineDiv = document.createElement('div');
-        lineDiv.textContent = line === '' ? '\u00A0' : line;
-        lineDiv.style.fontSize = fontSize + 'px';
-        
+    for (let i = 0; i < lines.length; i++) {
+        const lineDiv = document.createElement('div');
+        lineDiv.textContent = lines[i] === '' ? '\u00A0' : lines[i];
         outputElement.appendChild(lineDiv);
-    });
-    
-    while (outputElement.children.length > maxLines) {
-        outputElement.removeChild(outputElement.children[0]);
     }
     
-    await new Promise(resolve => {
-        requestAnimationFrame(() => {
-            setTimeout(resolve, 1);
-        });
-    });
+    _schedule_log_flush();
+    
+    // yield one microtask so callers keep their async flow without forcing a paint
+    await Promise.resolve();
         
     if (NETWORK_LOGGING) {
         try {
@@ -152,25 +163,25 @@ function trigger() {
         }
     };
 
+    // ------------------------------------------------------------------
+    // HUD OPS CONSOLE UI (L92 edition)
+    // Sharp military-HUD look, mint/amber accents, zero border-radius.
+    // Public API preserved: autoloader_ui / updateProgress / uiLog / hideUI
+    // ------------------------------------------------------------------
     window.inject_ui_style = function() {
-        if (document.getElementById("nl_style")) return;
+        if (document.getElementById("hud_style")) return;
         const style = document.createElement("style");
-        style.id = "nl_style";
+        style.id = "hud_style";
         style.textContent = [
-            "@keyframes nlFadeIn { from { opacity:0; transform: translateY(8px);} to { opacity:1; transform:none;} }",
-            "@keyframes nlGlow { 0%,100% { text-shadow: 0 0 24px rgba(0,229,255,.85), 0 0 60px rgba(0,229,255,.35);} 50% { text-shadow: 0 0 30px rgba(255,43,214,.85), 0 0 70px rgba(255,43,214,.40);} }",
-            "@keyframes nlPulse { 0%,100% { opacity:1; transform: scale(1);} 50% { opacity:.35; transform: scale(.7);} }",
-            "@keyframes nlShimmer { 0% { background-position: 0% 0;} 100% { background-position: 300% 0;} }",
-            "@keyframes nlDriftA { 0%,100% { transform: translate(0,0) scale(1);} 50% { transform: translate(120px,-80px) scale(1.15);} }",
-            "@keyframes nlDriftB { 0%,100% { transform: translate(0,0) scale(1);} 50% { transform: translate(-140px,90px) scale(1.1);} }",
-            "@keyframes nlScan { 0% { top:-15%;} 100% { top:115%;} }",
-            "#nl_bg { position:absolute; top:0; left:0; width:1920px; height:1080px; background-image:url('background.png'); background-size:cover; background-position:center; z-index:0; }",
-            "#nl_vignette { position:absolute; top:0; left:0; width:1920px; height:1080px; background:linear-gradient(180deg, rgba(2,3,16,.78) 0%, rgba(2,3,16,.42) 45%, rgba(2,3,16,.85) 100%); z-index:1; }",
-            "#nl_auraA { position:absolute; top:60px; left:-100px; width:820px; height:820px; border-radius:50%; background:radial-gradient(circle, rgba(0,229,255,.22) 0%, rgba(0,229,255,0) 65%); z-index:1; animation:nlDriftA 14s ease-in-out infinite; }",
-            "#nl_auraB { position:absolute; bottom:-160px; right:-120px; width:900px; height:900px; border-radius:50%; background:radial-gradient(circle, rgba(255,43,214,.20) 0%, rgba(255,43,214,0) 65%); z-index:1; animation:nlDriftB 17s ease-in-out infinite; }",
-            "#nl_scan { position:absolute; left:0; width:100%; height:14%; background:linear-gradient(180deg, rgba(0,229,255,0) 0%, rgba(0,229,255,.05) 50%, rgba(0,229,255,0) 100%); z-index:2; animation:nlScan 9s linear infinite; }",
-            ".nl_glass { background:rgba(6,10,26,.72); border:1px solid rgba(0,229,255,.35); border-radius:18px; box-shadow:0 0 34px rgba(0,229,255,.18), inset 0 0 60px rgba(0,229,255,.04); }",
-            ".nl_entry { animation:nlFadeIn .25s ease-out; }"
+            "@keyframes hudPulse { 0%,100% { opacity:1; box-shadow:0 0 0 0 rgba(0,255,163,.55);} 50% { opacity:.55; box-shadow:0 0 0 12px rgba(0,255,163,0);} }",
+            "@keyframes hudTicker { 0% { transform: translateX(0);} 100% { transform: translateX(-50%);} }",
+            "@keyframes hudScan { 0% { top:-16%;} 100% { top:116%;} }",
+            "@keyframes hudShimmer { 0% { background-position: 0% 0;} 100% { background-position: 200% 0;} }",
+            "#hud_bg { position:absolute; top:0; left:0; width:1920px; height:1080px; background-image:url('background.png'); background-size:cover; background-position:center; z-index:0; }",
+            "#hud_duo { position:absolute; top:0; left:0; width:1920px; height:1080px; background:linear-gradient(115deg, rgba(3,6,10,.94) 0%, rgba(3,6,10,.55) 55%, rgba(3,6,10,.90) 100%); z-index:1; }",
+            "#hud_grid { position:absolute; top:0; left:0; width:1920px; height:1080px; background-image:linear-gradient(rgba(0,255,163,.045) 1px, rgba(0,0,0,0) 1px), linear-gradient(90deg, rgba(0,255,163,.045) 1px, rgba(0,0,0,0) 1px); background-size:64px 64px; z-index:1; }",
+            "#hud_scan { position:absolute; left:0; width:100%; height:12%; background:linear-gradient(180deg, rgba(0,255,163,0) 0%, rgba(0,255,163,.05) 50%, rgba(0,255,163,0) 100%); z-index:2; animation:hudScan 11s linear infinite; }",
+            "#hud_vign { position:absolute; top:0; left:0; width:1920px; height:1080px; background:radial-gradient(ellipse at 50% 42%, rgba(0,0,0,0) 30%, rgba(3,6,10,.55) 100%); z-index:2; }"
         ].join("\n");
         document.head.appendChild(style);
     };
@@ -186,15 +197,9 @@ function trigger() {
         const baseHeight = 1080;
         const scale = window.innerWidth / baseWidth;
 
-        // Background image with graceful fallback to a deep-space gradient
-        const bgProbe = new Image();
-        bgProbe.onerror = function() {
-            const bg = document.getElementById("nl_bg");
-            if (bg) {
-                bg.style.backgroundImage = "linear-gradient(135deg, #05010f 0%, #0b1030 45%, #1a0a2e 100%)";
-            }
-        };
-        bgProbe.src = "background.png";
+        const ACC = "#00ffa3";      // mint
+        const AMB = "#ffb300";      // amber
+        const INK = "rgba(6,12,16,.90)";
 
         const autoloader_ui = document.createElement("div");
         autoloader_ui.id = "autoloader_ui";
@@ -207,253 +212,405 @@ function trigger() {
         autoloader_ui.style.transformOrigin = "top left";
         autoloader_ui.style.zIndex = "9999";
         autoloader_ui.style.overflow = "hidden";
-        autoloader_ui.style.backgroundColor = "#05010f";
+        autoloader_ui.style.backgroundColor = "#04060a";
         autoloader_ui.style.fontFamily = "Arial, sans-serif";
-        autoloader_ui.style.padding = "0px";
 
-        // Scenic layers
-        const bg = document.createElement("div");
-        bg.id = "nl_bg";
-        autoloader_ui.appendChild(bg);
+        // Scenic + HUD layers
+        const bg = document.createElement("div"); bg.id = "hud_bg"; autoloader_ui.appendChild(bg);
+        const duo = document.createElement("div"); duo.id = "hud_duo"; autoloader_ui.appendChild(duo);
+        const grid = document.createElement("div"); grid.id = "hud_grid"; autoloader_ui.appendChild(grid);
+        const vign = document.createElement("div"); vign.id = "hud_vign"; autoloader_ui.appendChild(vign);
+        const scan = document.createElement("div"); scan.id = "hud_scan"; autoloader_ui.appendChild(scan);
 
-        const vignette = document.createElement("div");
-        vignette.id = "nl_vignette";
-        autoloader_ui.appendChild(vignette);
+        // Frame brackets
+        const brackets = [
+            [52, 52, "top", "left"],
+            [1786, 52, "top", "right"],
+            [52, 992, "bottom", "left"],
+            [1786, 992, "bottom", "right"]
+        ];
+        for (let i = 0; i < 4; i++) {
+            const b = document.createElement("div");
+            b.style.position = "absolute";
+            b.style.top = brackets[i][1] + "px";
+            b.style.left = brackets[i][0] + "px";
+            b.style.width = "62px";
+            b.style.height = "62px";
+            b.style.zIndex = "4";
+            b.style.borderTop = "3px solid rgba(0,0,0,0)";
+            b.style.borderLeft = "3px solid rgba(0,0,0,0)";
+            b.style.borderBottom = "3px solid rgba(0,0,0,0)";
+            b.style.borderRight = "3px solid rgba(0,0,0,0)";
+            b.style["border-" + brackets[i][2]] = "3px solid " + ACC;
+            b.style["border-" + brackets[i][3]] = "3px solid " + ACC;
+            b.style.opacity = "0.85";
+            autoloader_ui.appendChild(b);
+        }
 
-        const auraA = document.createElement("div");
-        auraA.id = "nl_auraA";
-        autoloader_ui.appendChild(auraA);
+        // ---- Left: brand block
+        const logo = document.createElement("div");
+        logo.style.position = "absolute";
+        logo.style.top = "72px";
+        logo.style.left = "80px";
+        logo.style.width = "88px";
+        logo.style.height = "88px";
+        logo.style.backgroundImage = "url('icon0.png')";
+        logo.style.backgroundSize = "cover";
+        logo.style.backgroundPosition = "center";
+        logo.style.border = "3px solid " + ACC;
+        logo.style.boxShadow = "0 0 26px rgba(0,255,163,.35)";
+        logo.style.zIndex = "3";
+        autoloader_ui.appendChild(logo);
 
-        const auraB = document.createElement("div");
-        auraB.id = "nl_auraB";
-        autoloader_ui.appendChild(auraB);
+        const brand = document.createElement("div");
+        brand.style.position = "absolute";
+        brand.style.top = "64px";
+        brand.style.left = "196px";
+        brand.style.zIndex = "3";
+        const brandName = document.createElement("div");
+        brandName.textContent = "Y2JB";
+        brandName.style.fontSize = "84px";
+        brandName.style.fontWeight = "bold";
+        brandName.style.color = "#f2fff9";
+        brandName.style.letterSpacing = "4px";
+        brandName.style.lineHeight = "84px";
+        brand.appendChild(brandName);
+        const brandSub = document.createElement("div");
+        brandSub.textContent = "AUTOLOADER \u2022 OPS CONSOLE";
+        brandSub.style.fontSize = "19px";
+        brandSub.style.color = AMB;
+        brandSub.style.letterSpacing = "7px";
+        brandSub.style.marginTop = "6px";
+        brand.appendChild(brandSub);
+        autoloader_ui.appendChild(brand);
 
-        const scan = document.createElement("div");
-        scan.id = "nl_scan";
-        autoloader_ui.appendChild(scan);
+        // ---- Left: runtime log terminal
+        const logPanel = document.createElement("div");
+        logPanel.style.position = "absolute";
+        logPanel.style.top = "280px";
+        logPanel.style.left = "80px";
+        logPanel.style.width = "800px";
+        logPanel.style.height = "620px";
+        logPanel.style.border = "1px solid rgba(0,255,163,.4)";
+        logPanel.style.backgroundColor = INK;
+        logPanel.style.boxShadow = "0 0 30px rgba(0,0,0,.6)";
+        logPanel.style.zIndex = "3";
+        autoloader_ui.appendChild(logPanel);
 
-        // Orbital icon badge
-        const badge = document.createElement("div");
-        badge.style.position = "absolute";
-        badge.style.top = "64px";
-        badge.style.left = "50%";
-        badge.style.transform = "translateX(-50%)";
-        badge.style.width = "118px";
-        badge.style.height = "118px";
-        badge.style.borderRadius = "50%";
-        badge.style.backgroundImage = "url('icon0.png')";
-        badge.style.backgroundSize = "cover";
-        badge.style.backgroundPosition = "center";
-        badge.style.border = "2px solid rgba(0,229,255,.65)";
-        badge.style.boxShadow = "0 0 40px rgba(0,229,255,.45), inset 0 0 28px rgba(0,0,0,.55)";
-        badge.style.zIndex = "3";
-        autoloader_ui.appendChild(badge);
+        const logHead = document.createElement("div");
+        logHead.textContent = "RUNTIME LOG";
+        logHead.style.height = "46px";
+        logHead.style.lineHeight = "44px";
+        logHead.style.padding = "0 18px";
+        logHead.style.fontSize = "20px";
+        logHead.style.fontWeight = "bold";
+        logHead.style.letterSpacing = "5px";
+        logHead.style.color = ACC;
+        logHead.style.borderBottom = "1px solid rgba(0,255,163,.35)";
+        logHead.style.backgroundColor = "rgba(0,255,163,.07)";
+        logHead.style.fontFamily = "monospace";
+        logPanel.appendChild(logHead);
 
-        // Title
-        const title = document.createElement("div");
-        title.textContent = "Y2JB AUTOLOADER";
-        title.style.position = "absolute";
-        title.style.top = "196px";
-        title.style.left = "0px";
-        title.style.width = "100%";
-        title.style.textAlign = "center";
-        title.style.fontWeight = "bold";
-        title.style.color = "#eaf6ff";
-        title.style.fontSize = "74px";
-        title.style.letterSpacing = "14px";
-        title.style.zIndex = "3";
-        title.style.animation = "nlGlow 4s ease-in-out infinite";
-        autoloader_ui.appendChild(title);
-
-        // Status chip
-        const chip = document.createElement("div");
-        chip.id = "nl_chip";
-        chip.style.position = "absolute";
-        chip.style.top = "316px";
-        chip.style.left = "50%";
-        chip.style.transform = "translateX(-50%)";
-        chip.style.padding = "12px 34px";
-        chip.style.borderRadius = "30px";
-        chip.style.background = "rgba(6,10,26,.8)";
-        chip.style.border = "1px solid rgba(0,229,255,.5)";
-        chip.style.color = "#9fe8ff";
-        chip.style.fontSize = "26px";
-        chip.style.letterSpacing = "3px";
-        chip.style.zIndex = "3";
-        chip.className = "nl_glass";
-        const chipDot = document.createElement("div");
-        chipDot.id = "nl_chip_dot";
-        chipDot.style.position = "absolute";
-        chipDot.style.left = "18px";
-        chipDot.style.top = "50%";
-        chipDot.style.transform = "translateY(-50%)";
-        chipDot.style.width = "14px";
-        chipDot.style.height = "14px";
-        chipDot.style.borderRadius = "50%";
-        chipDot.style.backgroundColor = "#00e5ff";
-        chipDot.style.boxShadow = "0 0 14px rgba(0,229,255,.9)";
-        chipDot.style.animation = "nlPulse 1.4s ease-in-out infinite";
-        chipDot.style.marginLeft = "16px";
-        chip.textContent = "INITIALISATION...";
-        chip.appendChild(chipDot);
-        autoloader_ui.appendChild(chip);
-
-        // Log panel (glass)
-        const logWrapper = document.createElement("div");
-        logWrapper.style.width = "940px";
-        logWrapper.style.height = "440px";
-        logWrapper.style.position = "absolute";
-        logWrapper.style.top = "400px";
-        logWrapper.style.left = "50%";
-        logWrapper.style.transform = "translateX(-50%)";
-        logWrapper.style.color = "#9fb3d1";
-        logWrapper.style.fontFamily = "monospace";
-        logWrapper.style.fontSize = "24px";
-        logWrapper.style.overflow = "hidden";
-        logWrapper.style.overflowY = "scroll";
-        logWrapper.style.padding = "10px 0px";
-        logWrapper.style.zIndex = "3";
-        logWrapper.className = "nl_glass";
-        logWrapper.id = "logWrapper";
-        autoloader_ui.appendChild(logWrapper);
+        const logWrap = document.createElement("div");
+        logWrap.style.position = "relative";
+        logWrap.style.height = "574px";
+        logWrap.style.overflow = "hidden";
+        logWrap.style.fontFamily = "monospace";
+        logWrap.style.fontSize = "22px";
+        logWrap.style.lineHeight = "31px";
+        logWrap.style.color = "#b9c9c3";
+        logWrap.id = "logWrapper";
+        logWrap.style.padding = "0 18px";
+        logPanel.appendChild(logWrap);
 
         const logContainer = document.createElement("div");
         logContainer.id = "logContainer";
         logContainer.style.position = "absolute";
         logContainer.style.bottom = "0";
-        logContainer.style.left = "0";
-        logContainer.style.width = "100%";
-        logContainer.style.padding = "14px 22px";
-        logWrapper.appendChild(logContainer);
+        logContainer.style.left = "18px";
+        logContainer.style.right = "18px";
+        logWrap.appendChild(logContainer);
 
-        // Progress rail
-        const progressBarContainer = document.createElement("div");
-        progressBarContainer.style.width = "940px";
-        progressBarContainer.style.height = "64px";
-        progressBarContainer.style.position = "absolute";
-        progressBarContainer.style.top = "876px";
-        progressBarContainer.style.left = "50%";
-        progressBarContainer.style.transform = "translateX(-50%)";
-        progressBarContainer.style.overflow = "hidden";
-        progressBarContainer.style.position = "relative";
-        progressBarContainer.style.zIndex = "3";
-        progressBarContainer.className = "nl_glass";
-        autoloader_ui.appendChild(progressBarContainer);
+        // ---- Right: mission status panel
+        const msn = document.createElement("div");
+        msn.style.position = "absolute";
+        msn.style.top = "280px";
+        msn.style.left = "1140px";
+        msn.style.width = "700px";
+        msn.style.height = "620px";
+        msn.style.border = "1px solid rgba(0,255,163,.4)";
+        msn.style.backgroundColor = INK;
+        msn.style.zIndex = "3";
+        autoloader_ui.appendChild(msn);
 
-        const progressBar = document.createElement("div");
-        progressBar.id = "progressBar";
-        progressBar.style.width = "100%";
-        progressBar.style.height = "100%";
-        progressBar.style.background = "linear-gradient(90deg, #00e5ff, #7aa8ff, #ff2bd6, #00e5ff)";
-        progressBar.style.backgroundSize = "300% 100%";
-        progressBar.style.transformOrigin = "left";
-        progressBar.style.transform = "scaleX(0)";
-        progressBar.style.opacity = "0.92";
-        progressBar.style.animation = "nlShimmer 3.5s linear infinite";
-        progressBarContainer.appendChild(progressBar);
+        const msnHead = document.createElement("div");
+        msnHead.textContent = "MISSION STATUS";
+        msnHead.style.height = "46px";
+        msnHead.style.lineHeight = "44px";
+        msnHead.style.padding = "0 18px";
+        msnHead.style.fontSize = "20px";
+        msnHead.style.fontWeight = "bold";
+        msnHead.style.letterSpacing = "5px";
+        msnHead.style.color = ACC;
+        msnHead.style.borderBottom = "1px solid rgba(0,255,163,.35)";
+        msnHead.style.backgroundColor = "rgba(0,255,163,.07)";
+        msnHead.style.fontFamily = "monospace";
+        msn.appendChild(msnHead);
 
-        const progressLabel = document.createElement("div");
-        progressLabel.id = "progressLabel";
-        progressLabel.textContent = "LOADING...";
-        progressLabel.style.position = "absolute";
-        progressLabel.style.top = "50%";
-        progressLabel.style.left = "50%";
-        progressLabel.style.transform = "translate(-50%, -50%)";
-        progressLabel.style.color = "#ffffff";
-        progressLabel.style.fontSize = "28px";
-        progressLabel.style.fontWeight = "bold";
-        progressLabel.style.letterSpacing = "2px";
-        progressLabel.style.textShadow = "0 0 12px rgba(0,0,0,.9), 0 0 24px rgba(0,229,255,.5)";
-        progressLabel.style.zIndex = "1";
-        progressBarContainer.appendChild(progressLabel);
+        const statusLine = document.createElement("div");
+        statusLine.id = "hud_status";
+        statusLine.textContent = "INITIALISING...";
+        statusLine.style.padding = "14px 18px 10px 18px";
+        statusLine.style.fontSize = "22px";
+        statusLine.style.fontWeight = "bold";
+        statusLine.style.letterSpacing = "1px";
+        statusLine.style.color = "#f2fff9";
+        statusLine.style.fontFamily = "monospace";
+        statusLine.style.whiteSpace = "nowrap";
+        statusLine.style.overflow = "hidden";
+        msn.appendChild(statusLine);
 
-        const progressPct = document.createElement("div");
-        progressPct.id = "progressPct";
-        progressPct.textContent = "0%";
-        progressPct.style.position = "absolute";
-        progressPct.style.top = "896px";
-        progressPct.style.left = "0px";
-        progressPct.style.width = "100%";
-        progressPct.style.textAlign = "center";
-        progressPct.style.color = "#7dd7ff";
-        progressPct.style.fontSize = "22px";
-        progressPct.style.letterSpacing = "4px";
-        progressPct.style.zIndex = "3";
-        autoloader_ui.appendChild(progressPct);
+        // Steps
+        const stepNames = ["BOOT", "EXPLOIT", "KERNEL", "UPDATE", "PAYLOAD"];
+        const stepsBox = document.createElement("div");
+        stepsBox.style.margin = "6px 18px 0 18px";
+        stepsBox.style.borderTop = "1px solid rgba(255,255,255,.09)";
+        msn.appendChild(stepsBox);
+        for (let i = 0; i < stepNames.length; i++) {
+            const row = document.createElement("div");
+            row.style.position = "relative";
+            row.style.height = "62px";
+            row.style.borderBottom = "1px solid rgba(255,255,255,.09)";
 
-        // Footer
-        const footer = document.createElement("div");
-        footer.textContent = "by PLK  \u2022  fork of Y2JB by Gezine";
-        footer.style.position = "absolute";
-        footer.style.bottom = "26px";
-        footer.style.left = "0px";
-        footer.style.width = "100%";
-        footer.style.textAlign = "center";
-        footer.style.color = "rgba(159,179,209,.65)";
-        footer.style.fontSize = "20px";
-        footer.style.letterSpacing = "2px";
-        footer.style.zIndex = "3";
-        autoloader_ui.appendChild(footer);
+            const marker = document.createElement("div");
+            marker.style.position = "absolute";
+            marker.style.left = "0px";
+            marker.style.top = "16px";
+            marker.style.width = "30px";
+            marker.style.height = "30px";
+            marker.style.border = "2px solid rgba(140,160,152,.85)";
+            marker.style.backgroundColor = "rgba(0,0,0,0)";
+            row.appendChild(marker);
+
+            const nm = document.createElement("div");
+            nm.textContent = "0" + (i + 1) + " / " + stepNames[i];
+            nm.style.position = "absolute";
+            nm.style.left = "48px";
+            nm.style.top = "18px";
+            nm.style.fontSize = "24px";
+            nm.style.color = "#8ea39a";
+            nm.style.letterSpacing = "3px";
+            row.appendChild(nm);
+
+            const st = document.createElement("div");
+            st.textContent = "IDLE";
+            st.id = "hud_step_" + i;
+            st.style.position = "absolute";
+            st.style.right = "0px";
+            st.style.top = "21px";
+            st.style.fontSize = "18px";
+            st.style.letterSpacing = "3px";
+            st.style.color = "rgba(140,160,152,.7)";
+            st.style.fontFamily = "monospace";
+            row.appendChild(st);
+
+            stepsBox.appendChild(row);
+        }
+
+        // Big percentage + segmented bar
+        const pctBox = document.createElement("div");
+        pctBox.style.position = "absolute";
+        pctBox.style.left = "18px";
+        pctBox.style.right = "18px";
+        pctBox.style.bottom = "24px";
+        msn.appendChild(pctBox);
+
+        const pctNum = document.createElement("div");
+        pctNum.id = "hud_pct";
+        pctNum.textContent = "00%";
+        pctNum.style.fontSize = "104px";
+        pctNum.style.fontWeight = "bold";
+        pctNum.style.color = ACC;
+        pctNum.style.letterSpacing = "6px";
+        pctNum.style.lineHeight = "104px";
+        pctNum.style.textShadow = "0 0 22px rgba(0,255,163,.45)";
+        pctNum.style.fontFamily = "monospace";
+        pctBox.appendChild(pctNum);
+
+        const barTrack = document.createElement("div");
+        barTrack.style.height = "22px";
+        barTrack.style.border = "1px solid rgba(0,255,163,.45)";
+        barTrack.style.position = "relative";
+        barTrack.style.overflow = "hidden";
+        barTrack.style.marginTop = "16px";
+        barTrack.style.backgroundColor = "rgba(0,0,0,.45)";
+        pctBox.appendChild(barTrack);
+
+        const barFill = document.createElement("div");
+        barFill.id = "progressBar";
+        barFill.style.width = "100%";
+        barFill.style.height = "100%";
+        barFill.style.background = "linear-gradient(90deg, #00ffa3, #8cffd9, #ffb300, #00ffa3)";
+        barFill.style.backgroundSize = "200% 100%";
+        barFill.style.transformOrigin = "left";
+        barFill.style.transform = "scaleX(0)";
+        barFill.style.opacity = "0.95";
+        barTrack.appendChild(barFill);
+
+        const segs = document.createElement("div");
+        segs.style.position = "absolute";
+        segs.style.top = "0";
+        segs.style.left = "0";
+        segs.style.width = "100%";
+        segs.style.height = "100%";
+        segs.style.backgroundImage = "linear-gradient(90deg, rgba(4,6,10,1) 0, rgba(4,6,10,1) 6px, rgba(0,0,0,0) 6px, rgba(0,0,0,0) 34px)";
+        segs.style.backgroundSize = "34px 100%";
+        barTrack.appendChild(segs);
+
+        const barLabel = document.createElement("div");
+        barLabel.id = "progressLabel";
+        barLabel.textContent = "STANDBY";
+        barLabel.style.position = "absolute";
+        barLabel.style.top = "0";
+        barLabel.style.left = "0";
+        barLabel.style.width = "100%";
+        barLabel.style.textAlign = "center";
+        barLabel.style.lineHeight = "22px";
+        barLabel.style.fontSize = "14px";
+        barLabel.style.fontWeight = "bold";
+        barLabel.style.letterSpacing = "4px";
+        barLabel.style.color = "#eafff5";
+        barTrack.appendChild(barLabel);
+
+        // ---- Footer ticker
+        const ticker = document.createElement("div");
+        ticker.style.position = "absolute";
+        ticker.style.left = "0px";
+        ticker.style.right = "0px";
+        ticker.style.bottom = "0px";
+        ticker.style.height = "52px";
+        ticker.style.borderTop = "1px solid rgba(0,255,163,.3)";
+        ticker.style.backgroundColor = "rgba(3,6,10,.8)";
+        ticker.style.zIndex = "3";
+        ticker.style.overflow = "hidden";
+        autoloader_ui.appendChild(ticker);
+
+        const tickerInner = document.createElement("div");
+        const base = "Y2JB AUTOLOADER L92 \u2022 BOOT > EXPLOIT > KERNEL > UPDATE > PAYLOAD \u2022 ";
+        tickerInner.textContent = base + base + base + base;
+        tickerInner.style.position = "absolute";
+        tickerInner.style.whiteSpace = "nowrap";
+        tickerInner.style.lineHeight = "52px";
+        tickerInner.style.fontSize = "20px";
+        tickerInner.style.fontFamily = "monospace";
+        tickerInner.style.letterSpacing = "2px";
+        tickerInner.style.color = "rgba(0,255,163,.55)";
+        tickerInner.style.animation = "hudTicker 36s linear infinite";
+        ticker.appendChild(tickerInner);
 
         document.body.appendChild(autoloader_ui);
     };
 
+    window.hud_paint_steps = function(states) {
+        for (let i = 0; i < 5; i++) {
+            const stEl = document.getElementById("hud_step_" + i);
+            if (!stEl) continue;
+            const row = stEl.parentNode;
+            const marker = row.firstChild;
+            if (!marker || !marker.style) continue;
+
+            const state = states[i] || "idle";
+            if (state === "done") {
+                stEl.textContent = "COMPLETE";
+                stEl.style.color = "#00ffa3";
+                marker.style.border = "2px solid #00ffa3";
+                marker.style.backgroundColor = "#00ffa3";
+                marker.style.boxShadow = "none";
+                marker.style.animation = "none";
+            } else if (state === "run") {
+                stEl.textContent = "RUNNING";
+                stEl.style.color = "#ffb300";
+                marker.style.border = "2px solid #ffb300";
+                marker.style.backgroundColor = "rgba(0,0,0,0)";
+                marker.style.boxShadow = "0 0 12px rgba(255,179,0,.55)";
+                marker.style.animation = "hudPulse 1.2s ease-in-out infinite";
+            } else {
+                stEl.textContent = "IDLE";
+                stEl.style.color = "rgba(140,160,152,.7)";
+                marker.style.border = "2px solid rgba(140,160,152,.85)";
+                marker.style.backgroundColor = "rgba(0,0,0,0)";
+                marker.style.boxShadow = "none";
+                marker.style.animation = "none";
+            }
+        }
+    };
+
     window.updateProgress = function(percent, message="Loading...") {
-        const progressBar = document.getElementById("progressBar");
-        if (progressBar) {
-            progressBar.style.transform = 'scaleX(' + percent/100 + ')';
+        const bar = document.getElementById("progressBar");
+        if (bar) {
+            bar.style.transform = "scaleX(" + percent / 100 + ")";
         }
-        const progressLabel = document.getElementById("progressLabel");
-        if (progressLabel) {
-            progressLabel.textContent = message;
+        const label = document.getElementById("progressLabel");
+        if (label) {
+            label.textContent = String(message).toUpperCase();
         }
-        const progressPct = document.getElementById("progressPct");
-        if (progressPct) {
-            progressPct.textContent = percent + "%";
+        const pct = document.getElementById("hud_pct");
+        if (pct) {
+            pct.textContent = (percent < 10 ? "0" : "") + percent + "%";
+            pct.style.color = percent >= 100 ? "#00ffa3" : "#ffb300";
         }
-        const chipDot = document.getElementById("nl_chip_dot");
-        if (chipDot) {
-            chipDot.style.backgroundColor = "#ffd166";
-            chipDot.style.boxShadow = "0 0 14px rgba(255,209,102,.9)";
+        const status = document.getElementById("hud_status");
+        if (status) {
+            status.textContent = String(message).toUpperCase();
         }
-        const chip = document.getElementById("nl_chip");
-        if (chip && message) {
-            chip.textContent = String(message).toUpperCase();
-            chip.appendChild(chipDot);
+
+        const m = String(message || "").toLowerCase();
+        let states = null;
+        if (m.indexOf("userland") !== -1) {
+            states = ["done", "run", "idle", "idle", "idle"];
+        } else if (m.indexOf("running kernel exploit") !== -1) {
+            states = ["done", "done", "run", "idle", "idle"];
+        } else if (m.indexOf("kernel exploit finished") !== -1 || m.indexOf("updating y2jb") !== -1) {
+            states = ["done", "done", "done", "run", "idle"];
+        } else if (m.indexOf("syncing icon") !== -1) {
+            states = ["done", "done", "done", "done", "idle"];
+        } else if (m.indexOf("sending payloads") !== -1) {
+            states = ["done", "done", "done", "done", "run"];
+        } else if (m.indexOf("finish") !== -1 || m.indexOf("complete") !== -1) {
+            states = ["done", "done", "done", "done", "done"];
+        }
+        if (states) {
+            window.hud_paint_steps(states);
         }
         window.uiLog(message, "warning");
     };
 
     window.uiLog = function(message, type="info") {
-        if (typeof message === 'string' && (message.includes("[ERROR]") || message.includes("[-]"))) {
-            if (typeof window.hideUI === 'function') window.hideUI();
+        if (typeof message === "string" && (message.includes("[ERROR]") || message.includes("[-]"))) {
+            if (typeof window.hideUI === "function") window.hideUI();
         }
         const logContainer = document.getElementById("logContainer");
         if (logContainer) {
             const logEntry = document.createElement("div");
-            logEntry.className = "nl_entry";
             if (type === "error") {
-                logEntry.style.color = "#ff4d6d";
-                logEntry.style.textShadow = "0 0 12px rgba(255,77,109,.45)";
+                logEntry.style.color = "#ff5470";
+                logEntry.style.fontWeight = "bold";
             } else if (type === "success") {
-                logEntry.style.color = "#7dff8a";
-                logEntry.style.textShadow = "0 0 12px rgba(125,255,138,.40)";
+                logEntry.style.color = "#00ffa3";
             } else if (type === "warning") {
-                logEntry.style.color = "#ffd166";
+                logEntry.style.color = "#ffb300";
             } else {
-                logEntry.style.color = "#9fb3d1";
+                logEntry.style.color = "#b9c9c3";
             }
-            logEntry.style.marginBottom = "6px";
             logEntry.style.whiteSpace = "nowrap";
-            logEntry.style.overflow = "hidden";
-            logEntry.textContent = "\u00BB " + message;
+            logEntry.textContent = "\u203A " + message;
             logContainer.appendChild(logEntry);
-            while (logContainer.childElementCount > 20) {
+            while (logContainer.childElementCount > 30) {
                 logContainer.removeChild(logContainer.firstChild);
             }
-            const logWrapper = document.getElementById("logWrapper");
-            if (logWrapper) {
-                logWrapper.scrollTop = logWrapper.scrollHeight;
+            const logWrap = document.getElementById("logWrapper");
+            if (logWrap) {
+                logWrap.scrollTop = logWrap.scrollHeight;
             }
         }
     };
@@ -464,6 +621,7 @@ function trigger() {
             existing_ui.parentNode.removeChild(existing_ui);
         }
     };
+
 
     try {
         if (typeof window.autoloader_ui === 'function') {
@@ -991,6 +1149,22 @@ function trigger() {
             allocated_buffers.push(buffer);
             return backing_store;
         }
+
+        // Fast bulk read: temporarily repoints a real ArrayBuffer backing store at the
+        // target address, does one native memmove, then restores it (GC-safe).
+        // Native-speed replacement for per-byte read8 loops (used by update/icon checks).
+        addr_to_u8copy = function(addr, size) {
+            const n = Number(size);
+            const buffer = new ArrayBuffer(n);
+            const buffer_addr = addrof(buffer);
+            const org = read64(buffer_addr + 0x20n);
+            write64(buffer_addr + 0x20n, addr);   // hijack backing store
+            const view = new Uint8Array(buffer);
+            const copy = new Uint8Array(n);       // our own stable memory
+            copy.set(view);                       // one native bulk copy
+            write64(buffer_addr + 0x20n, org);    // restore original backing store
+            return copy;
+        };
         
         await log("Stable primitive achieved");
         
@@ -1413,8 +1587,14 @@ function trigger() {
         }
 
         await start_update();
+        if (typeof window.updateProgress === 'function') {
+            window.updateProgress(75, "Syncing icon...");
+        }
         await start_icon_update();
-        await sleep(1000);
+        if (typeof window.updateProgress === 'function') {
+            window.updateProgress(90, "Sending payloads...");
+        }
+        await sleep(700);
         await start_autoload();
 
         if (typeof window.updateProgress === 'function') {

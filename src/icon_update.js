@@ -75,6 +75,21 @@ async function start_icon_update() {
   }
 
   function compare_buffers(buf1_ptr, buf2_ptr, size) {
+      // Fast path: compare in native typed arrays (was: per-byte read8)
+      if (typeof addr_to_u8copy === "function") {
+          const a = addr_to_u8copy(buf1_ptr, size);
+          const b = addr_to_u8copy(buf2_ptr, size);
+          const words = size >> 2;
+          const a32 = new Uint32Array(a.buffer, 0, words);
+          const b32 = new Uint32Array(b.buffer, 0, words);
+          for (let i = 0; i < words; i++) {
+              if (a32[i] !== b32[i]) return false;
+          }
+          for (let i = words << 2; i < size; i++) {
+              if (a[i] !== b[i]) return false;
+          }
+          return true;
+      }
       const n = BigInt(size);
       for (let i = 0n; i < n; i++) {
           if (read8(buf1_ptr + i) !== read8(buf2_ptr + i)) {

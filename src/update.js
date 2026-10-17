@@ -220,6 +220,10 @@ async function start_update() {
 
 
   function bufferPtrToUint8Array(bufPtr, size) {
+      // Fast path: single native memmove via exploit-backed helper (was: N per-byte read8)
+      if (typeof addr_to_u8copy === "function") {
+          return addr_to_u8copy(bufPtr, size);
+      }
       const n = Number(size);
       const arr = new Uint8Array(n);
       for (let i = 0; i < n; i++) {
@@ -233,7 +237,45 @@ async function start_update() {
       // flags: O_WRONLY|O_CREAT|O_TRUNC, mode 0755
       const flags = O_WRONLY | O_CREAT | O_TRUNC;
       const mode = 0o755n;
-      const fd = syscall(SYSCALL.open, path_addr, BigInt(flags), mode);
+
+      let wrote = null;
+      let closeRet = 0n;
+      let fd = null;
+
+      // Fast path: zero-copy write from the typed array's real backing store
+      // (previously every byte was pushed through fake-RW read-modify-write).
+      if (typeof get_backing_store === "function" && typeof addrof === "function") {
+          try {
+              const buf = get_backing_store(uint8arr);
+              fd = syscall(SYSCALL.open, path_addr, BigInt(flags), mode);
+              if (fd >= 0n) {
+                  wrote = syscall(SYSCALL.write, fd, buf, BigInt(uint8arr.length));
+                  closeRet = syscall(SYSCALL.close, fd);
+                  if (wrote < 0n || wrote !== BigInt(uint8arr.length)) {
+                      log("[WARN] fast write incomplete for " + path + " wrote=" + wrote + "/" + uint8arr.length + " (retrying with slow path)");
+                      wrote = null; // trigger fallback below
+                  } else {
+                      if (closeRet < 0n) {
+                          log("[WARN] close returned " + toHex(closeRet) + " for " + path);
+                      }
+                      return true;
+                  }
+              } else {
+                  log("[WARN] fast open failed: " + path + " fd=" + toHex(fd) + " (retrying with slow path)");
+              }
+          } catch (e) {
+              wrote = null; // fall through to legacy path
+          }
+      }
+
+      // Legacy slow path (kept as robust fallback)
+      if (fd !== null) {
+          // previous fd might still be open on failed write path, close it
+          if (fd >= 0n && closeRet === 0n) {
+              syscall(SYSCALL.close, fd);
+          }
+      }
+      fd = syscall(SYSCALL.open, path_addr, BigInt(flags), mode);
       if (fd < 0n) {
           const err = toHex(fd);
           log("[ERROR] open for write failed: " + path + " fd=" + err);
@@ -245,8 +287,8 @@ async function start_update() {
       for (let i = 0; i < uint8arr.length; i++) {
           write8(buf + BigInt(i), BigInt(uint8arr[i]));
       }
-      const wrote = syscall(SYSCALL.write, fd, buf, BigInt(uint8arr.length));
-      const closeRet = syscall(SYSCALL.close, fd);
+      wrote = syscall(SYSCALL.write, fd, buf, BigInt(uint8arr.length));
+      closeRet = syscall(SYSCALL.close, fd);
       if (wrote < 0n) {
           const err = toHex(wrote);
           log("[ERROR] write failed for " + path + " -> " + err);
@@ -342,6 +384,21 @@ async function start_update() {
   }
 
 function compare_buffers(buf1_ptr, buf2_ptr, size) {
+      // Fast path: compare in native typed arrays (was: per-byte read8, ~N/4 fake-RW calls)
+      if (typeof addr_to_u8copy === "function") {
+          const a = addr_to_u8copy(buf1_ptr, size);
+          const b = addr_to_u8copy(buf2_ptr, size);
+          const words = size >> 2;
+          const a32 = new Uint32Array(a.buffer, 0, words);
+          const b32 = new Uint32Array(b.buffer, 0, words);
+          for (let i = 0; i < words; i++) {
+              if (a32[i] !== b32[i]) return false;
+          }
+          for (let i = words << 2; i < size; i++) {
+              if (a[i] !== b[i]) return false;
+          }
+          return true;
+      }
       const n = BigInt(size);
       for (let i = 0n; i < n; i++) {
           if (read8(buf1_ptr + i) !== read8(buf2_ptr + i)) {
