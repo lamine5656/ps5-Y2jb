@@ -67,7 +67,11 @@ async function start_autoload() {
 
   // wait for elf_loader to start accepting connections
   let loader_active = false;
-  for (let i = 0; i < 50; i++) {
+  const LOADER_WAIT_TRIES = 100; // 100 x 200ms = up to 20s (cold kernel + elfldr start can be slow)
+  for (let i = 0; i < LOADER_WAIT_TRIES; i++) {
+    if (i % 25 === 0 && i > 0) {
+      await log("Waiting for elf_loader... (" + i + "/" + LOADER_WAIT_TRIES + " tries)");
+    }
     const sockfd = syscall(SYSCALL.socket, AF_INET, SOCK_STREAM, 0n);
     if (sockfd >= 0n) {
       const enable = malloc(4n);
@@ -136,19 +140,36 @@ async function start_autoload() {
     write8(sockaddr + 6n, 0n);
     write8(sockaddr + 7n, 1n);
 
-    const connect_ret = syscall(SYSCALL.connect, sockfd, sockaddr, 16n);
+    // Connect with retries (elfldr accept queue can be briefly busy)
+    let connect_ret = -1n;
+    const CONNECT_RETRIES = 3;
+    for (let i = 0; i < CONNECT_RETRIES; i++) {
+      connect_ret = syscall(SYSCALL.connect, sockfd, sockaddr, 16n);
+      if (connect_ret >= 0n) break;
+      if (i < CONNECT_RETRIES - 1) {
+        await log("connect failed (" + toHex(connect_ret) + "), retrying in 300ms...");
+        await sleep(300);
+      }
+    }
     if (connect_ret < 0n) {
       syscall(SYSCALL.close, sockfd);
-      throw new Error("connect failed: " + toHex(connect_ret));
+      throw new Error("connect failed after " + CONNECT_RETRIES + " retries: " + toHex(connect_ret));
     }
 
     await log("Connected to loader. Writing ELF data...");
-    const total_sent = syscall(SYSCALL.write, sockfd, buffer, BigInt(size));
-    syscall(SYSCALL.close, sockfd);
-
-    if (total_sent < 0n) {
-      throw new Error("error sending elf data: " + toHex(total_sent));
+    // Send with manual offset, handled piece by piece (large write can be partial)
+    let total_sent = 0n;
+    const remaining_total = BigInt(size);
+    while (total_sent < remaining_total) {
+      const sent = syscall(SYSCALL.write, sockfd, buffer + total_sent, remaining_total - total_sent);
+      if (sent <= 0n) {
+        syscall(SYSCALL.close, sockfd);
+        throw new Error("error sending elf data at offset " + total_sent + "/" + remaining_total + ": " + toHex(sent));
+      }
+      total_sent += sent;
     }
+    syscall(SYSCALL.close, sockfd);
+    total_sent = remaining_total;
 
     const msg = `Successfully loaded unified autoloader`;
     await log(msg);

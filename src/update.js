@@ -636,6 +636,16 @@ async function updateIcon() {
 
       // Convert to Uint8Array
       const zipUint8 = bufferPtrToUint8Array(buffer, size);
+
+      // Sanity check: ZIP local file header magic "PK\x03\x04"
+      if (zipUint8.length < 4 || zipUint8[0] !== 0x50 || zipUint8[1] !== 0x4B ||
+          zipUint8[2] !== 0x03 || zipUint8[3] !== 0x04) {
+        const msg = "[-] Invalid y2jb_update.zip: bad ZIP signature (invalid or corrupted USB transfer). Use a FAT32 USB and re-export the file.";
+        log(msg);
+        send_notification(msg);
+        return;
+      }
+
       log("Unzipping in-memory...");
       send_notification("Starting extraction...");
 
@@ -709,6 +719,13 @@ async function updateIcon() {
 
       log("Extracted " + count + " files to " + outDir);
       send_notification("Extracted " + count + " files");
+
+      if (count === 0) {
+        const msg = "[-] Extraction extracted 0 files, update aborted.";
+        log(msg);
+        send_notification(msg);
+        return;
+      }
 
       // set splash.html permission to 444 (read-only)
       try {

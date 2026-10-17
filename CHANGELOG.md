@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.1.0 (L92 UI + stability edition)
+- New modern UI (space/neon theme using custom `background.png` + custom `icon0.png`)
+- Stability: retry primitive acquisition stage up to 3 attempts with full GC between tries
+- Stability: ELF loader wait window extended from 10s to 20s with progress logging
+- Stability: payload send now retries connect (3x) and handles partial socket writes
+- Stability: update package ZIP signature check (detects corrupt USB transfers before extraction)
+- Stability: clear abort with notification if extraction yields 0 files
+- Stability: last-chance exception now also emits a system notification
+
 ## v1.0.1
 - Fixed Relapse reporting "reboot the PS5 first" on a console that was already rebooted
 
