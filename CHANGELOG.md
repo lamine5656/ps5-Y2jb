@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.2.3-l92 (hover-background diagnostics)
+- Dashboard hover background is a dynamic system background, not appmeta icon0
+- New diagnostics: lists files (name + size) in /user/appmeta/{tid}/ and in the YT splash_screen cache on every boot (visible in RUNTIME LOG)
+- Next step: identify and hijack the splash/hover background file used by the dashboard
+
 ## v1.2.2-l92 (dashboard icon diagnostics)
 - App icon write now unlinks the old file first, writes, then re-reads and byte-compares
 - Explicit notifications: "VERIFIED on disk (reboot to refresh)" or "[ERROR] write FAILED (sandbox block?)"

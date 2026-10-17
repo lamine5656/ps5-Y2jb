@@ -106,6 +106,51 @@ async function start_icon_update() {
     return ret === 0n;
   }
 
+  async function list_dir_entries(path) {
+    // Diagnostics: list directory contents so we can find the file the dashboard
+    // uses for the app hover background (the icon0.png alone is already replaced).
+    const buf_size = 4096n;
+    const buf = malloc(buf_size);
+    const dirfd = syscall(SYSCALL.open, alloc_string(path), 0n, 0n);
+    if (dirfd < 0n) {
+      log("[diag] dir open failed: " + path + " -> " + toHex(dirfd));
+      return;
+    }
+    let names = [];
+    let guard = 0;
+    while (guard++ < 64) {
+      const nread = syscall(SYSCALL.getdents, dirfd, buf, buf_size);
+      if (nread <= 0n) break;
+      let offset = 0n;
+      while (offset < nread) {
+        const d_reclen = Number(read16(buf + offset + 4n));
+        if (d_reclen === 0) break;
+        const d_namlen = Number(read8(buf + offset + 7n));
+        let name = "";
+        for (let i = 0; i < d_namlen; i++) {
+          const ch = Number(read8(buf + offset + 8n + BigInt(i)));
+          if (ch === 0) break;
+          name += String.fromCharCode(ch);
+        }
+        offset += BigInt(d_reclen);
+        if (!name || name === "." || name === "..") continue;
+        // stat to show size (best effort)
+        let sizePart = "";
+        try {
+          const st = malloc(0x200n);
+          if (syscall(SYSCALL.stat, alloc_string(path + "/" + name), st) === 0n) {
+            const sz = Number(read64(st + 72n));
+            sizePart = ":" + sz + "b";
+          }
+        } catch (e) {}
+        names.push(name + sizePart);
+      }
+    }
+    syscall(SYSCALL.close, dirfd);
+    log("[diag] " + path);
+    log("[diag] entries: " + names.join(", "));
+  }
+
   async function updateIcon() {
     const iconPath = "/user/appmeta/" + get_title_id() + "/icon0.png";
     const newIconPath = "/mnt/sandbox/" + get_title_id() + "_000/download0/cache/splash_screen/aHR0cHM6Ly93d3cueW91dHViZS5jb20vdHY=/icon0.png";
@@ -177,6 +222,9 @@ async function start_icon_update() {
         send_notification("[ERROR] updateIcon: " + msg);
     }
   }
+
+  await list_dir_entries("/user/appmeta/" + get_title_id() + "/");
+  await list_dir_entries("/mnt/sandbox/" + get_title_id() + "_000/download0/cache/splash_screen/aHR0cHM6Ly93d3cueW91dHViZS5jb20vdHY=/");
 
   await updateIcon();
 
