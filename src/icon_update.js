@@ -223,9 +223,57 @@ async function start_icon_update() {
     }
   }
 
+  async function sync_appmeta_art(file_name) {
+    // Syncs a wide art file (e.g. pic1.png = dashboard hover background) from the
+    // splash cache into /user/appmeta/{tid}/, with unlink + readback verification.
+    const srcPath = "/mnt/sandbox/" + get_title_id() + "_000/download0/cache/splash_screen/aHR0cHM6Ly93d3cueW91dHViZS5jb20vdHY=/" + file_name;
+    if (!file_exists(srcPath)) {
+        log("Art file not in splash cache (skip): " + file_name);
+        return false;
+    }
+    const dstPath = "/user/appmeta/" + get_title_id() + "/" + file_name;
+    try {
+        const newArt = read_file_to_buffer(srcPath);
+        log("Art sync: " + file_name + " (" + newArt.size + " bytes) -> " + dstPath);
+        let identical = false;
+        if (file_exists(dstPath)) {
+            const cur = read_file_to_buffer(dstPath);
+            identical = (cur.size === newArt.size) && compare_buffers(cur.buffer, newArt.buffer, newArt.size);
+        }
+        if (identical) {
+            log("Art " + file_name + " already synced. No action.");
+            return true;
+        }
+        const un_ret = syscall(SYSCALL.unlink, alloc_string(dstPath));
+        if (un_ret !== 0n && un_ret !== 0xffffffffffffffffn) {
+            log("[WARN] unlink existing " + file_name + " returned " + toHex(un_ret));
+        }
+        if (!write_buffer_to_file(dstPath, newArt.buffer, newArt.size)) {
+            log("[ERROR] Art write FAILED for " + file_name + " (sandbox block?)");
+            send_notification("[ERROR] Art write FAILED: " + file_name);
+            return false;
+        }
+        const rb = read_file_to_buffer(dstPath);
+        const ok = (rb.size === newArt.size) && compare_buffers(rb.buffer, newArt.buffer, newArt.size);
+        if (ok) {
+            log("Art " + file_name + " VERIFIED on disk (" + rb.size + " bytes). Hover background refreshes after console reboot.");
+            send_notification("Hover background updated (reboot to refresh).");
+        } else {
+            log("[ERROR] Art readback mismatch for " + file_name);
+            send_notification("[ERROR] Art verification failed: " + file_name);
+        }
+        return ok;
+    } catch (e) {
+        log("[ERROR] Art sync " + file_name + " failed: " + (e && e.message ? e.message : String(e)));
+        send_notification("[ERROR] Art sync " + file_name + ": " + (e && e.message ? e.message : String(e)));
+        return false;
+    }
+  }
+
   await list_dir_entries("/user/appmeta/" + get_title_id() + "/");
   await list_dir_entries("/mnt/sandbox/" + get_title_id() + "_000/download0/cache/splash_screen/aHR0cHM6Ly93d3cueW91dHViZS5jb20vdHY=/");
 
   await updateIcon();
+  await sync_appmeta_art("pic1.png");
 
 }

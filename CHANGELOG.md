@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.2.4-l92 (hover background attempt)
+- splash_screen cache only contained loader files -> hover background is not there
+- New: writes user background as `pic1.png` (1920x1080, custom-covers convention) into `/user/appmeta/{tid}/` via both update flows, with unlink + readback verification and explicit notifications
+- If pic1 is ignored by the shell we will know from the HUD log (verified write but no visual change)
+
 ## v1.2.3-l92 (hover-background diagnostics)
 - Dashboard hover background is a dynamic system background, not appmeta icon0
 - New diagnostics: lists files (name + size) in /user/appmeta/{tid}/ and in the YT splash_screen cache on every boot (visible in RUNTIME LOG)

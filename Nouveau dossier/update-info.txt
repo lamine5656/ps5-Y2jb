@@ -1,0 +1,16 @@
+aioshellcode.js|3918
+autoload.js|6350
+background.png|1495354
+elfldr-ps5-v0.26-bb1e117.elf|394480
+global.js|10701
+icon0.png|648070
+icon_update.js|6027
+kernel.js|9113
+kexp-v0.8-24cf6e5.bin|18208
+lapse.js|75097
+main.js|640848
+misc.js|23379
+ps5-unified-autoloader.elf|2526736
+relapse.js|268557
+splash.html|596
+update.js|66828
