@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.2.1-l92 (background fix)
+- Cobalt cannot reliably load relative image files -> HUD background + icon are now embedded as data-URLs (jpeg 1080p q80 + png 256, ~420 KB) directly in main.js
+- No dependency on file loading at UI paint time anymore: background always renders on every firmware/app combo
+
 ## v1.2.0 (speed + HUD edition)
 - **Major speed**: native bulk-memory path (`addr_to_u8copy`) replaces per-byte fake-RW loops
   - update zip decompress feed, extracted file writes (zero-copy via `get_backing_store`), icon compare — orders of magnitude faster (was: millions of read8/write8 calls)
