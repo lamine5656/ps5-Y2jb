@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.3.6-l92 (no more duplicate launches, clean notifications)
+- **Unified autoloader v0.1.11-l92**:
+  - a payload listed **twice** in `autoload.txt` is launched **only once** (deduplication by filename, case-insensitive)
+  - the entries `hyperhen.elf` are always skipped (auto-launched just before)
+  - **debug notifications removed** (skipped / found config): only remain "Launching HyperHEN...", "HyperHEN loaded", "Launching: X", errors and "Autoload complete"
+
 ## v1.3.5-l92 (light autoloader, HyperHEN launched from file)
 - **Fix CE-108255-1** (app crash on jailbreak): the autoloader had grown to 12.68 MB with the embedded HyperHEN — the browser-side JS reads that ELF fully into memory and crashed. The autoloader is rebuilt as **v0.1.10-l92, back to 2.91 MB**: HyperHEN is **NOT embedded anymore**, it is launched **from the file next to autoload.txt** (or found in `/mnt/usb*/ps5_autoloader/` and `/data/ps5_autoloader/`), still automatically, still before your other payloads
 - `hyperhen.elf` entries in `autoload.txt` are still skipped (already auto-launched) — leave the file on the USB stick, keep the line or remove it, both fine
