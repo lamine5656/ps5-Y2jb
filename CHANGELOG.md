@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.3.3-l92 (HyperHEN auto-launch)
+- Bundled `ps5-unified-autoloader.elf` rebuilt from https://github.com/lamine5656/ps5-unified-autoloader (**v0.1.7-l92**, fork of itsPLK v0.1.6) - **HyperHEN.elf (6.2 MB) is now embedded in the autoloader itself** and is sent to elfldr automatically right after the jailbreak, BEFORE autoload.txt: no more manual payload sending, HEN is always ready
+- `autoload.txt` robustness fixes in the same build (your "Not found: hyperhen.elf" report):
+  - UTF-8 **BOM stripped** from the first line (Windows Notepad silently broke the first listed payload)
+  - **case-insensitive fallback** when resolving payload names (UFS is case-sensitive; "HyperHEN.elf" vs "hyperhen.elf" now still matches)
+  - "Not found" notifications now include the resolved full path for easier debugging
+- autoload.txt is still optional: without it and without pldmgr, only HyperHEN runs; with it, your payload list still runs after HyperHEN loads
+
 ## v1.3.2-l92 (speed sync from itsPLK v1.1.0)
 - Ported the execution-speed optimizations from https://github.com/itsPLK/ps5-y2jb-autoloader (commits `143e3f0` autoload + `0efdf65` perf) into this build
 - `src/autoload.js`: elfldr readiness poll is now **25ms x 200 tries** with buffers allocated once (was 200ms x 100) and a fast-fail; kept our send robustness (3 connect retries + partial-write loop)
