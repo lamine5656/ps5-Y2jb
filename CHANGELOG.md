@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.3.1-l92 (sync with notmaj0r/Y2JB)
+- Compared this build against the improved project (https://github.com/notmaj0r/Y2JB, `main` = `1f2ff09`, which is exactly the base this repo was taken over from) and merged what it had that we did not
+- `src/relapse.js`: **FW 11.40 offsets added** (they were the only firmware missing between 7.00 and 13.60); values derived from `RelapseOffsets.js` with both deltas (11.20 -> 11.40 and 11.60 -> 11.40) yielding the same result, block generated in our own format/style and re-checked with `node --check`
+- `src/global.js`: SYSCALL table aligned with theirs (56 -> 63 entries: `socketpair`, `getrlimit`, `setrlimit`, `aio_multi_wait`, `aio_multi_poll`, `aio_multi_cancel`, `aio_submit_cmd`), same numeric values as the `SYSCALL_EXTRA` fallback relapse.js merges in
+- `README.md`: merged the setup documentation we were missing (requirements, full DNS procedure and rationale, fake account activation, Prospero/FTP transfer paths, backup file names + Sony restore warning, `appinfo_editor.py` procedure, YouTube softlock escape, `payload_sender.py` usage with ports), keeping the L92 structure and our newer YouTube table; release links now point to this repo
+- Not merged on purpose: `main.js` (our Ops Console HUD is the interface), `kexp.js` / `remotejsloader.js` (our chain loads `kernel.js`, byte-identical to theirs), `elfldr-ps5.elf` and `kexp.bin` (ours are newer: elfldr v0.26 of 2026-09-29 and kexp v0.8 of 2026-09-30 vs their 2026-08-02 / 2026-05-25 builds), `payloads/payload_sender.py` (byte-identical)
+
 ## v1.3.0-l92 (repository takeover)
 - The stock Y2JB payload chain (`download0/cache/...`, `kexp.js`, `remotejsloader.js`) is replaced by the L92 autoloader project: `src/` is now the source of truth, the Y2JB install vector is unchanged
 - UI: the L92 "Ops Console" HUD is now the only interface (runtime log, step checklist, progress bar, embedded background/icon)

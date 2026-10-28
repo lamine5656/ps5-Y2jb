@@ -305,5 +305,12 @@ let SYSCALL = {
     thr_exit: 0x1afn,
     fsync: 0x5fn,
     ioctl: 0x36n,
-    kill: 0x25n
+    kill: 0x25n,
+    socketpair: 0x87n,
+    getrlimit: 0xc2n,
+    setrlimit: 0xc3n,
+    aio_multi_wait: 0x297n,
+    aio_multi_poll: 0x298n,
+    aio_multi_cancel: 0x29an,
+    aio_submit_cmd: 0x29dn
 };

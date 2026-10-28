@@ -34,6 +34,21 @@ What you get:
 
 The interface is previewable in a normal browser: open [preview_ui.html](preview_ui.html).
 
+## Requirements
+
+- At least 4.03 firmware PS5
+
+### For Jailbroken PS5 (WebKit, Lua, BD-JB)
+
+- Fake or legit activated PS5
+- YouTube app PKG matching your firmware (see the table in [Installation](#installation))
+- FTP access to the console
+
+### For Non-Jailbroken PS5
+
+- USB flash drive
+- Pre-made backup file
+
 ## Installation
 
 ### Jailbroken PS5 (WebKit, Lua, BD-JB)
@@ -46,18 +61,93 @@ Install YouTube (`PPSA01650` / `PPSA01651` / `PPSA01652`):
 | **12.60 - 13.20** | `v01.000.030` |
 | **13.40 - 13.60** | `v01.009.253` |
 
-Then FTP `download0.dat` from the [Releases page](https://github.com/notmaj0r/Y2JB/releases) to
-`/user/download/PPSA0165*/` (create the folder if needed).
+Download `download0.dat` from the [Releases page](https://github.com/lamine5656/ps5-Y2jb/releases)
+and transfer it with [Prospero Manager](https://github.com/notmaj0r/ProsperoMgr),
+[FTP](https://github.com/ps5-payload-dev/ftpsrv) or any file manager to the path matching your
+YouTube app's TITLE ID (create the folder if it does not exist):
 
-> **DNS note:** set the PS5 DNS to `127.0.0.2` (Settings > Network > Set Up Internet Connection >
-> Manual > DNS Settings). This blocks PSN, which stops YouTube and firmware update prompts from
-> interfering with the exploit. A network/PSN error message is expected and harmless.
+```
+/user/download/PPSA01650
+/user/download/PPSA01651
+/user/download/PPSA01652
+```
+
+You only need one of them — the one matching your YouTube app's TITLE ID.
+
+#### Configure network DNS settings (optional, but highly recommended)
+
+1. Navigate to **Settings > Network > Settings > Set Up Internet Connection**
+2. Scroll to the bottom and select **Set Up Manually**
+3. Choose your connection type:
+   - **Use WiFi**: enter your network name and password manually, then set security to "WPA-Personal..."
+   - **Use a LAN Cable**: proceed to the next step
+4. Under **DNS Settings**, change from "Automatic" to **Manual**
+5. Set **Primary DNS** to `127.0.0.2` (leave Secondary DNS blank)
+6. Press **Done** and wait for the connection to establish
+
+**Note:** you may see a network/PSN connection error — this is expected and can be safely ignored;
+the console still works normally for YouTube payload delivery.
+
+**Alternative:** instead of `127.0.0.2`, you can block PSN servers with your own DNS server.
+
+**Why `127.0.0.2` matters:** pointing DNS at localhost keeps the PS5 from reaching PlayStation
+Network, which otherwise raises YouTube app and firmware update prompts that interfere with the
+exploit.
+
+#### Fake account activation
+
+> Skip this section if you use the backup file from the Releases page.
+
+Y2JB requires a **fake-activated account**, and a legit PSN-activated account cannot be used
+directly — create a separate fake-activated one:
+
+1. Create a new offline account on your PS5
+2. While logging in to this new account, open **etaHEN toolbox**
+3. Navigate to the **"Remote Play"** menu
+4. The account is fake-activated automatically
 
 ### Non-Jailbroken PS5
 
-Restore a Y2JB system backup, then place `download0.dat` from the Releases page in
-`/user/download/PPSA01650` with FTP, or install a YouTube app from another region and place it in
-`/user/download/PPSA0165*/`.
+1. Download the backup file from the [Releases page](https://github.com/lamine5656/ps5-Y2jb/releases)
+   - **Firmware 4.03 – 12.40** → `Y2JB_backup_1.6(4.03)`
+   - **Firmware 12.60 and up** → `Y2JB_backup_1.6(12.20)`
+2. Follow Sony's official guide to [restore backup data from USB](https://www.playstation.com/en-gb/support/hardware/back-up-ps5-data-USB/)
+3. Place `download0.dat` in `/user/download/PPSA01650` with FTP, or install a YouTube app from
+   another region and place it in `/user/download/PPSA0165*/`
+
+**⚠️ WARNING:** restoring backup data **will factory reset your PS5** — every data on the console
+will be erased.
+
+### Blocking YouTube updates (`appinfo_editor.py`)
+
+**⚠️ CRITICAL:** database corruption can delete **all installed FPKGs and savedata** on your
+internal storage. Back up your savedata with the PS5's built-in backup and restore (Settings)
+before touching `appinfo.db`.
+
+This script stops YouTube from updating if you accidentally connect to the internet — an update
+can softlock YouTube.
+
+1. Retrieve `/system_data/priv/mms/appinfo.db` from your PS5 using FTP
+2. Place `appinfo.db` in the same directory as `appinfo_editor.py` and run:
+   ```
+   python appinfo_editor.py
+   ```
+3. **Before replacing the file** (to avoid corruption): close YouTube completely, navigate to the
+   Settings page and make sure no package is being installed or updated
+4. Use FTP to replace `/system_data/priv/mms/appinfo.db` with the modified version
+5. If you get no corruption notification, reboot your PS5
+
+### How to escape a YouTube softlock
+
+This typically happens when you connect to the internet **before** setting the `127.0.0.2` DNS
+(most common with WiFi users).
+
+1. Once softlocked, connect to the internet normally, without a custom DNS
+2. Launch YouTube again and deny the system software update popup
+3. YouTube should now launch — run the jailbreak and load HEN
+4. Set the DNS back to `127.0.0.2`, then uninstall YouTube
+5. Repeat the **Jailbroken PS5** and **Blocking YouTube updates** sections
+6. Restart your PS5
 
 ## How to use the autoloader
 
@@ -78,7 +168,7 @@ send payloads from your browser without preparing files in advance.
 
 ## How to update
 
-Place **`y2jb_update.zip`** from the [Releases page](https://github.com/notmaj0r/Y2JB/releases)
+Place **`y2jb_update.zip`** from the [Releases page](https://github.com/lamine5656/ps5-Y2jb/releases)
 on a USB drive and start the app: the HUD performs the update, re-verifies the written files and
 reports the result in the runtime log.
 
@@ -91,10 +181,37 @@ Accepted locations (first match wins):
 
 The file name must match exactly.
 
+## Sending payloads
+
+Send payloads from your PC with `payloads/payload_sender.py` (requires Python):
+
+```
+python payload_sender.py <host> <file>
+python payload_sender.py <host> <port> <file>
+```
+
+**Examples:**
+
+```
+python payload_sender.py 192.168.1.100 helloworld.js
+python payload_sender.py 192.168.1.100 50000 helloworld.js
+python payload_sender.py 192.168.1.100 9020 payload.bin
+```
+
+**Port notes:** the Remote JS server does not always use `50000` — it may pick another port;
+that is normal behaviour, not a bug.
+
+- **Lapse** (FW ≤ 10.01): once Lapse succeeds, send HEN or any ELF to port **9021**
+  (`python payload_sender.py 192.168.1.100 9021 hen.bin`) — any TCP sender works (`netcat`,
+  `payload_sender.py`).
+- **Relapse** (FW ≤ 13.60, active network connection required): elfldr starts listening on port
+  **9021** after the payload lands.
+
 ## Extras
 
 - `appinfo_editor.py` — blocks YouTube updates by patching `appinfo.db` (**backup your savedata
-  first**: a corrupted database can wipe installed FPKGs and savedata).
+  first**: a corrupted database can wipe installed FPKGs and savedata) — see
+  [Blocking YouTube updates](#blocking-youtube-updates-appinfo_editorpy).
 - `log_server.py` — tiny HTTP log server; point `LOG_SERVER` in `src/main.js` at your PC to mirror
   the HUD log over the network.
 - `payloads/payload_sender.py` — send a payload to a listening ELF loader from your PC.
