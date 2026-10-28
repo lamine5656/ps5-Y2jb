@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.3.4-l92 (no more double HyperHEN)
+- **Fix "hypercore stopped"**: `hyperhen.elf` listed in `autoload.txt` was launched a second time while the embedded one had already launched -> the fix skips any `hyperhen.elf` entry in `autoload.txt` (notification confirms "already auto-launched")
+- **Embedded HyperHEN updated** to your newer build (D:\Ps5\HyperHEN.elf, 9.77 MB, 2026-10-19) - unified-autoloader rebuilt as **v0.1.9-l92** (12.68 MB ELF)
+
 ## v1.3.3-l92 (HyperHEN auto-launch)
 - Bundled `ps5-unified-autoloader.elf` rebuilt from https://github.com/lamine5656/ps5-unified-autoloader (**v0.1.7-l92**, fork of itsPLK v0.1.6) - **HyperHEN.elf (6.2 MB) is now embedded in the autoloader itself** and is sent to elfldr automatically right after the jailbreak, BEFORE autoload.txt: no more manual payload sending, HEN is always ready
 - `autoload.txt` robustness fixes in the same build (your "Not found: hyperhen.elf" report):
