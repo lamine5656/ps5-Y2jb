@@ -1,5 +1,5 @@
-// Y2JB Updater by PLK
-// Source: https://github.com/itsPLK/y2jb_updater
+// Y2JB Updater — L92 build
+// Based on the MIT-licensed y2jb_updater; see THIRD_PARTY_NOTICES.md
 
 async function start_update() {
 
@@ -932,7 +932,7 @@ async function updateIcon() {
       }
   }
 
-  log("Y2JB Updater v" + Y2JB_UPDATER_VERSION + " by PLK");
+  log("Y2JB Updater v" + Y2JB_UPDATER_VERSION + " by L92");
   await update();
 
 }

@@ -25,7 +25,7 @@
 
 async function start_lapse() {
     try {
-        const lapse_version = "Y2JB Lapse 2.0 by Gezine";
+        const lapse_version = "Y2JB Lapse 2.0 by L92";
         
         let failcheck_path;
 

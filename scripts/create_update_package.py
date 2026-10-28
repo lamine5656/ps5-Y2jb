@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-# Vendored from itsPLK/y2jb-updater (MIT License, Copyright (c) 2025 itsPLK)
-# https://github.com/itsPLK/y2jb-updater/blob/main/create_update_package.py
+# MIT-licensed packaging script — see THIRD_PARTY_NOTICES.md for the copyright notice.
 
 import sys
 import os

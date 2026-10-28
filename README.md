@@ -2,7 +2,7 @@
  <img src="./src/icon0.png" width="128" />
 </p>
 <h1 align="center">Y2JB Autoloader — L92 build</h1>
-<h3 align="center">Based on <a href="https://github.com/Gezine/Y2JB">Y2JB</a> + the L92 autoloader project</h3>
+<h3 align="center">L92 build — kernel exploit + payload autoloader</h3>
 &nbsp;
 <p align="center">Kernel exploit + automatic payload loading for PS5.<br>Supports PS5 firmwares 4.03 - 13.60</p>
 
@@ -12,11 +12,11 @@
 
 ## What this build is
 
-This repository carries the **L92 project** (the one with the *Ops Console* HUD) instead of the
-stock Y2JB payload chain. Everything is started from the YouTube app, exactly like the original Y2JB,
-so installation and the update flow stay the same.
+This repository carries the **L92 project** — the *Ops Console* HUD, the autoloader chain and the
+Relapse/Lapse routing. Everything is started from the YouTube app, so installation and the update
+flow stay the same.
 
-What you get over stock Y2JB:
+What you get:
 
 - **Ops Console HUD** — a full-screen interface (runtime log terminal, live step checklist,
   big progress readout, segmented bar) drawn by `src/main.js`, with the background and icon
@@ -36,8 +36,6 @@ The interface is previewable in a normal browser: open [preview_ui.html](preview
 
 ## Installation
 
-Installation is identical to the original Y2JB.
-
 ### Jailbroken PS5 (WebKit, Lua, BD-JB)
 
 Install YouTube (`PPSA01650` / `PPSA01651` / `PPSA01652`):
@@ -51,9 +49,9 @@ Install YouTube (`PPSA01650` / `PPSA01651` / `PPSA01652`):
 Then FTP `download0.dat` from the [Releases page](https://github.com/notmaj0r/Y2JB/releases) to
 `/user/download/PPSA0165*/` (create the folder if needed).
 
-> **DNS note:** setting the PS5 DNS to `127.0.0.2` blocks PSN, which stops YouTube and firmware
-> update prompts from interfering with the exploit. See the original
-> [Y2JB README](https://github.com/Gezine/Y2JB/blob/main/README.md) for the step-by-step.
+> **DNS note:** set the PS5 DNS to `127.0.0.2` (Settings > Network > Set Up Internet Connection >
+> Manual > DNS Settings). This blocks PSN, which stops YouTube and firmware update prompts from
+> interfering with the exploit. A network/PSN error message is expected and harmless.
 
 ### Non-Jailbroken PS5
 
@@ -93,14 +91,14 @@ Accepted locations (first match wins):
 
 The file name must match exactly.
 
-## Extras kept from Y2JB
+## Extras
 
-- `appinfo_editor.py` — blocks YouTube updates by patching `appinfo.db` (read the warning in the
-  original Y2JB README before using it).
+- `appinfo_editor.py` — blocks YouTube updates by patching `appinfo.db` (**backup your savedata
+  first**: a corrupted database can wipe installed FPKGs and savedata).
 - `log_server.py` — tiny HTTP log server; point `LOG_SERVER` in `src/main.js` at your PC to mirror
   the HUD log over the network.
 - `payloads/payload_sender.py` — send a payload to a listening ELF loader from your PC.
-- `scripts/create_update_package.py` — vendored from [itsPLK/y2jb-updater](https://github.com/itsPLK/y2jb-updater) (MIT), builds `y2jb_update.zip`.
+- `scripts/create_update_package.py` — MIT-licensed packaging script (see its header), builds `y2jb_update.zip`.
 
 ## Build from source
 
@@ -126,31 +124,19 @@ By default the autoloader ships a localhost-only elfldr. To use your own, drop i
 
 ## Credits
 
-- **[Gezine](https://github.com/Gezine)** — creator of [Y2JB](https://github.com/Gezine/Y2JB) and of this
-  application's base code
-- **[itsPLK](https://github.com/itsPLK)** — [ps5-y2jb-autoloader](https://github.com/itsPLK/ps5-y2jb-autoloader),
-  [ps5-elfldr](https://github.com/itsPLK/ps5-elfldr), [ps5-kexp](https://github.com/itsPLK/ps5-kexp),
-  [ps5-unified-autoloader](https://github.com/itsPLK/ps5-unified-autoloader),
-  [ps5-payload-manager](https://github.com/itsPLK/ps5-payload-manager)
-- **[maj0r](https://github.com/notmaj0r)** — Relapse implementation, this fork
-- **[shahrilnet](https://github.com/shahrilnet), [null_ptr](https://github.com/n0llptr)** — Remote Lua Loader references
-- **[BenNoxXD](https://github.com/BenNoxXD)** — ClosePlayer reference
-- **[ntfargo](https://github.com/ntfargo)** — V8 CVEs and CTF writeups
-- **abc and psfree team** — Lapse implementation
-- **[edisnord](https://github.com/edisnord)** — [Relapse](https://github.com/edisnord/relapse-y2jb) implementation
-- **[flat_z](https://github.com/flatz), [LM](https://github.com/LightningMods)** — GPU rw via direct ioctl
-- **[john-tornblom](https://github.com/john-tornblom), [EchoStretch](https://github.com/EchoStretch)** — elfldr payload
-- **[hammer-83](https://github.com/hammer-83)** — BD-J PS5 exploit references
-- **[zecoxao](https://github.com/zecoxao), [idlesauce](https://github.com/idlesauce), [TheFlow](https://github.com/Theofficialflow)** — dlsym troubleshooting
-- **[Dr.Yenyen](https://github.com/DrYenyen) and PS5 R&D community** — testing Y2JB
-- **Rush** — Y2JB backup file
-- **[ufm42](https://github.com/ufm42)** — [kexp](https://github.com/ufm42/kexp) post-JB shellcode
+- **[L92](https://github.com/notmaj0r)** — Ops Console HUD, autoloader chain, Relapse/Lapse routing,
+  update and icon sync
+- Third-party components keep their own notices in the source files: Lapse and Relapse derivations,
+  elfldr, kexp, the unified autoloader and the payload manager, plus the references they build on
+  (psfree/Lapse team, shahrilnet, null_ptr, BenNoxXD, ntfargo, flat_z, LM, john-tornblom,
+  EchoStretch, hammer-83, zecoxao, idlesauce, TheFlow, ufm42, Dr.Yenyen and the PS5 R&D community)
 
 ## License
 
 This project is licensed under the **GPL-3.0 License**.
-The original **Y2JB** base code remains under its original **MIT License** (see [LICENSE-MIT](LICENSE-MIT)).
-All unique modifications and additions in this fork are licensed under **GPL-3.0**.
+The upstream base code remains under its original **MIT License** (see [LICENSE-MIT](LICENSE-MIT)).
+All unique modifications and additions by L92 are licensed under **GPL-3.0**.
+Per-file third-party copyright notices are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Disclaimer
 
@@ -159,5 +145,4 @@ The developers are not responsible for any damage, data loss, or consequences re
 
 ## Donate
 
-- [donate to Gezine](https://github.com/sponsors/Gezine) (creator of the original Y2JB)
 - see [DONATE.md](DONATE.md)

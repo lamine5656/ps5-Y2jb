@@ -1335,7 +1335,7 @@ function trigger() {
     try {
         if (typeof window.autoloader_ui === 'function') {
             window.autoloader_ui();
-            window.uiLog("Y2JB Autoloader " + autoloader_version + " by PLK", "success");
+            window.uiLog("Y2JB Autoloader " + autoloader_version + " by L92", "success");
             window.updateProgress(0, "Running userland exploit...");
 
         }

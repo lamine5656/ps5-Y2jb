@@ -84,9 +84,6 @@ jobs:
           RELEASE_TITLE: ${{ steps.get_version.outputs.title }}
           TARGET_COMMIT: ${{ github.sha }}
           LAST_STABLE_TAG: ${{ steps.get_version.outputs.last_stable_tag }}
-          ELFLDR_VER: ${{ steps.build_package.outputs.elfldr_ver }}
-          KEXP_VER: ${{ steps.build_package.outputs.kexp_ver }}
-          AUTOLOADER_VER: ${{ steps.build_package.outputs.unified_autoloader_ver }}
         run: |
           cat <<EOF > release_notes.md
           - ### Changelog:
@@ -97,10 +94,7 @@ jobs:
           <details>
           <summary>Bundled Binaries</summary>
 
-          This build integrates the following external dependency versions:
-          - [itsPLK/ps5-elfldr](https://github.com/itsPLK/ps5-elfldr): [${ELFLDR_VER}](https://github.com/itsPLK/ps5-elfldr/releases/tag/${ELFLDR_VER})
-          - [itsPLK/ps5-kexp](https://github.com/itsPLK/ps5-kexp): [${KEXP_VER}](https://github.com/itsPLK/ps5-kexp/releases/tag/${KEXP_VER})
-          - [itsPLK/ps5-unified-autoloader](https://github.com/itsPLK/ps5-unified-autoloader): [${AUTOLOADER_VER}](https://github.com/itsPLK/ps5-unified-autoloader/releases/tag/${AUTOLOADER_VER})
+          Binaries (elfldr, kexp, unified autoloader) are bundled in `src/`.
 
           </details>
           EOF
