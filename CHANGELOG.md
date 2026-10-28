@@ -7,7 +7,8 @@
 - `src/main.js`: removed `checkLogServer()` and the per-log network fetch (boot no longer waits on a log-server probe); removed the `sleep(700)` inter-stage delay between update and autoload
 - `src/update.js`: `updateIcon()` now does **stat size + 64-byte fast compare** first and only does the full read/write path when the icon actually differs (was: 2 x full read + full-buffer compare every boot); same optimization applied to the pic1/background art sync; icon/pic1 readback verification kept on the write path
 - `src/update.js`: update file search now probes the `/mnt/usb[0-7]` mountpoints themselves (skips unmounted ports) and checks `/data`, instead of probing all 18 deep paths
-- Unchanged on purpose: Ops Console HUD, custom icon0/background/pic1 pipeline, notmaj0r relapse port with FW 11.40, elfldr v0.26 / kexp v0.8 builds
+- Unchanged on purpose: Ops Console HUD, custom icon0/background/pic1 pipeline, notmaj0r relapse port with FW 11.40, kexp v0.8
+- **autoload.txt fix**: bundled binaries upgraded - `elfldr` v0.26 -> **v0.27-b57d0e9** and `ps5-unified-autoloader` v0.1.5 -> **v0.1.6-e7093cd** (payload-manager v0.6.3 embedded), both official itsPLK release builds; combined with the `connect_ret === 0n` handshake fix above this resolves the case where the `autoload.txt` payload list was never executed (ELF sent while elfldr was not accepting connections yet, and positive errno connect results treated as success)
 
 ## v1.3.1-l92 (sync with notmaj0r/Y2JB)
 - Compared this build against the improved project (https://github.com/notmaj0r/Y2JB, `main` = `1f2ff09`, which is exactly the base this repo was taken over from) and merged what it had that we did not
