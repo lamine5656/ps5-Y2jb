@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.3.7-l92 (internal storage first)
+- **Unified autoloader v0.1.12-l92**: the **internal `/data` storage has priority** over the USB key — `autoload.txt` + `hyperhen.elf` + payloads are read **directly from `/data/ps5_autoloader/`**, the key only being used in fallback (if the internal folder does not exist)
+- Launches without the key: place your files in `/data/ps5_autoloader/` (e.g., once from the key with a `@sync` at the end of `autoload.txt`)
+
 ## v1.3.6-l92 (no more duplicate launches, clean notifications)
 - **Unified autoloader v0.1.11-l92**:
   - a payload listed **twice** in `autoload.txt` is launched **only once** (deduplication by filename, case-insensitive)
