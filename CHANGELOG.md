@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.3.2-l92 (speed sync from itsPLK v1.1.0)
+- Ported the execution-speed optimizations from https://github.com/itsPLK/ps5-y2jb-autoloader (commits `143e3f0` autoload + `0efdf65` perf) into this build
+- `src/autoload.js`: elfldr readiness poll is now **25ms x 200 tries** with buffers allocated once (was 200ms x 100) and a fast-fail; kept our send robustness (3 connect retries + partial-write loop)
+- `src/autoload.js`: **fix** connect success check is now `connect_ret === 0n` (was `>= 0n`, so FreeBSD raw-syscall positive errno codes like 61n were wrongly treated as success)
+- `src/main.js`: removed `checkLogServer()` and the per-log network fetch (boot no longer waits on a log-server probe); removed the `sleep(700)` inter-stage delay between update and autoload
+- `src/update.js`: `updateIcon()` now does **stat size + 64-byte fast compare** first and only does the full read/write path when the icon actually differs (was: 2 x full read + full-buffer compare every boot); same optimization applied to the pic1/background art sync; icon/pic1 readback verification kept on the write path
+- `src/update.js`: update file search now probes the `/mnt/usb[0-7]` mountpoints themselves (skips unmounted ports) and checks `/data`, instead of probing all 18 deep paths
+- Unchanged on purpose: Ops Console HUD, custom icon0/background/pic1 pipeline, notmaj0r relapse port with FW 11.40, elfldr v0.26 / kexp v0.8 builds
+
 ## v1.3.1-l92 (sync with notmaj0r/Y2JB)
 - Compared this build against the improved project (https://github.com/notmaj0r/Y2JB, `main` = `1f2ff09`, which is exactly the base this repo was taken over from) and merged what it had that we did not
 - `src/relapse.js`: **FW 11.40 offsets added** (they were the only firmware missing between 7.00 and 13.60); values derived from `RelapseOffsets.js` with both deltas (11.20 -> 11.40 and 11.60 -> 11.40) yielding the same result, block generated in our own format/style and re-checked with `node --check`

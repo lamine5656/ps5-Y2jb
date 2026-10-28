@@ -65,38 +65,34 @@ async function start_autoload() {
     return null;
   }
 
-  // wait for elf_loader to start accepting connections
+  // wait for elf_loader to start accepting connections (itsPLK 143e3f0: fast 25ms poll,
+  // buffers allocated once, and connect_ret must be exactly 0n - FreeBSD raw syscalls
+  // return positive errno codes on failure)
   let loader_active = false;
-  const LOADER_WAIT_TRIES = 100; // 100 x 200ms = up to 20s (cold kernel + elfldr start can be slow)
+  const LOADER_WAIT_TRIES = 200; // 200 x 25ms = up to 5s of polling
+  const enable = malloc(4n);
+  write32(enable, 1n);
+  // Prepare sockaddr for 127.0.0.1:9021
+  const sockaddr = malloc(16n);
+  write8(sockaddr + 0n, 16n); // sin_len
+  write8(sockaddr + 1n, AF_INET); // sin_family
+  write16(sockaddr + 2n, BigInt(sceNetHtons(9021))); // sin_port
+  write8(sockaddr + 4n, 127n); // 127.0.0.1
+  write8(sockaddr + 5n, 0n);
+  write8(sockaddr + 6n, 0n);
+  write8(sockaddr + 7n, 1n);
   for (let i = 0; i < LOADER_WAIT_TRIES; i++) {
-    if (i % 25 === 0 && i > 0) {
-      await log("Waiting for elf_loader... (" + i + "/" + LOADER_WAIT_TRIES + " tries)");
-    }
     const sockfd = syscall(SYSCALL.socket, AF_INET, SOCK_STREAM, 0n);
     if (sockfd >= 0n) {
-      const enable = malloc(4n);
-      write32(enable, 1n);
       syscall(SYSCALL.setsockopt, sockfd, SOL_SOCKET, SO_REUSEADDR, enable, 4n);
-
-      // Prepare sockaddr for 127.0.0.1:9021
-      const sockaddr = malloc(16n);
-      write8(sockaddr + 0n, 16n); // sin_len
-      write8(sockaddr + 1n, AF_INET); // sin_family
-      write16(sockaddr + 2n, BigInt(sceNetHtons(9021))); // sin_port
-      write8(sockaddr + 4n, 127n); // 127.0.0.1
-      write8(sockaddr + 5n, 0n);
-      write8(sockaddr + 6n, 0n);
-      write8(sockaddr + 7n, 1n);
-
       const connect_ret = syscall(SYSCALL.connect, sockfd, sockaddr, 16n);
       syscall(SYSCALL.close, sockfd);
-
-      if (connect_ret >= 0n) {
+      if (connect_ret === 0n) {
         loader_active = true;
         break;
       }
     }
-    await sleep(200);
+    await sleep(25);
   }
 
   if (!loader_active) {
@@ -140,18 +136,18 @@ async function start_autoload() {
     write8(sockaddr + 6n, 0n);
     write8(sockaddr + 7n, 1n);
 
-    // Connect with retries (elfldr accept queue can be briefly busy)
+    // Connect with retries (elfldr accept queue can be briefly busy; success is exactly 0n)
     let connect_ret = -1n;
     const CONNECT_RETRIES = 3;
     for (let i = 0; i < CONNECT_RETRIES; i++) {
       connect_ret = syscall(SYSCALL.connect, sockfd, sockaddr, 16n);
-      if (connect_ret >= 0n) break;
+      if (connect_ret === 0n) break;
       if (i < CONNECT_RETRIES - 1) {
         await log("connect failed (" + toHex(connect_ret) + "), retrying in 300ms...");
         await sleep(300);
       }
     }
-    if (connect_ret < 0n) {
+    if (connect_ret !== 0n) {
       syscall(SYSCALL.close, sockfd);
       throw new Error("connect failed after " + CONNECT_RETRIES + " retries: " + toHex(connect_ret));
     }

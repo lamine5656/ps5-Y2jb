@@ -407,45 +407,78 @@ function compare_buffers(buf1_ptr, buf2_ptr, size) {
       }
       return true; // Buffers are identical
   }
-  
+
+  // --- fast file-diff helpers (itsPLK 0efdf65) ---
+  function get_file_size(path) {
+    const path_addr = alloc_string(path);
+    const stat_buf = malloc(0x200n);
+    const ret = syscall(SYSCALL.stat, path_addr, stat_buf);
+    if (ret !== 0n) return -1;
+    return Number(read64(stat_buf + 72n));
+  }
+
+  // Compares the first `len` bytes (header + first chunk) of two files with word loads.
+  // Returns false when a difference is found. Far cheaper than full read + compare.
+  function file_sample_differs(path_a, path_b, len = 64) {
+    try {
+      const buf_a = malloc(BigInt(len));
+      const buf_b = malloc(BigInt(len));
+      let pa = alloc_string(path_a);
+      let fd_a = syscall(SYSCALL.open, pa, O_RDONLY, 0n);
+      if (fd_a < 0n) return true;
+      pa = alloc_string(path_b);
+      let fd_b = syscall(SYSCALL.open, pa, O_RDONLY, 0n);
+      if (fd_b < 0n) { syscall(SYSCALL.close, fd_a); return true; }
+      const len_a = Number(syscall(SYSCALL.read, fd_a, buf_a, BigInt(len)));
+      const len_b = Number(syscall(SYSCALL.read, fd_b, buf_b, BigInt(len)));
+      syscall(SYSCALL.close, fd_a);
+      syscall(SYSCALL.close, fd_b);
+      if (len_a !== len_b || len_a <= 0) return true;
+      const words = Math.floor(len_a / 8);
+      for (let i = 0; i < words; i++) {
+        const off = BigInt(i * 8);
+        if (read64(buf_a + off) !== read64(buf_b + off)) return true;
+      }
+      for (let i = words << 3; i < len_a; i++) {
+        if (read8(buf_a + BigInt(i)) !== read8(buf_b + BigInt(i))) return true;
+      }
+      return false;
+    } catch (e) {
+      return true; // anything unexpected: assume it differs (safe = will rewrite)
+    }
+  }
+
 
 async function updateIcon() {
     const iconPath = "/user/appmeta/" + get_title_id() + "/icon0.png";
     const newIconPath = FINAL_PATH + "/icon0.png";
 
-    if (!file_exists(iconPath)) {
+    const curSize = get_file_size(iconPath);
+    if (curSize <= 0) {
         log("Icon file does not exist: " + iconPath);
         return null;
     }
-    
-    if (!file_exists(newIconPath)) {
+
+    const newSize = get_file_size(newIconPath);
+    if (newSize <= 0) {
         log("New icon file not found in update package: " + newIconPath);
         return null;
     }
 
-    let currentIcon = null;
-    let newIcon = null;
-    let areIdentical = false;
-
     try {
-        log("Reading current icon from: " + iconPath);
-        currentIcon = read_file_to_buffer(iconPath);
-        log("Current icon size: " + currentIcon.size + " bytes");
-
-        log("Reading new icon from: " + newIconPath);
-        newIcon = read_file_to_buffer(newIconPath);
-        log("New icon size: " + newIcon.size + " bytes");
-
-        if (currentIcon.size !== newIcon.size) {
-            log("Icons are different (size mismatch).");
-            areIdentical = false;
+        let areIdentical = false;
+        if (curSize === newSize) {
+            // Fast check: sample the first 64 bytes (header + chunk data) instead of
+            // reading both icons fully (was: 2 x full read + full-buffer compare per boot)
+            log("Icons same size (" + curSize + " bytes). Fast content check...");
+            areIdentical = !file_sample_differs(iconPath, newIconPath);
         } else {
-            log("Icons are the same size. Comparing contents...");
-            areIdentical = compare_buffers(currentIcon.buffer, newIcon.buffer, currentIcon.size);
+            log("Icons are different (size mismatch: current=" + curSize + ", new=" + newSize + ").");
         }
 
         if (!areIdentical) {
-            log("App icon: writing " + newIcon.size + " bytes to " + iconPath + " ...");
+            log("App icon: writing " + newSize + " bytes to " + iconPath + " ...");
+            const newIcon = read_file_to_buffer(newIconPath);
             // unlink first so any stale cache mapping does not shadow the rewrite
             const un_ret = syscall(SYSCALL.unlink, alloc_string(iconPath));
             if (un_ret !== 0n && un_ret !== 0xffffffffffffffffn && un_ret !== -2n) {
@@ -501,17 +534,22 @@ async function updateIcon() {
     }
     const dstPath = "/user/appmeta/" + get_title_id() + "/" + file_name;
     try {
-        const newArt = read_file_to_buffer(srcPath);
-        log("Art sync: " + file_name + " (" + newArt.size + " bytes) -> " + dstPath);
+        const srcSize = get_file_size(srcPath);
+        if (srcSize <= 0) {
+            log("Art file not in update package (skip): " + file_name);
+            return false;
+        }
+        log("Art sync: " + file_name + " (" + srcSize + " bytes) -> " + dstPath);
         let identical = false;
-        if (file_exists(dstPath)) {
-            const cur = read_file_to_buffer(dstPath);
-            identical = (cur.size === newArt.size) && compare_buffers(cur.buffer, newArt.buffer, newArt.size);
+        if (file_exists(dstPath) && get_file_size(dstPath) === srcSize) {
+            // Fast check: stat + 64-byte sample (was: 2 x full read + full-buffer compare per boot)
+            identical = !file_sample_differs(srcPath, dstPath);
         }
         if (identical) {
             log("Art " + file_name + " already synced. No action.");
             return true;
         }
+        const newArt = read_file_to_buffer(srcPath);
         const un_ret = syscall(SYSCALL.unlink, alloc_string(dstPath));
         if (un_ret !== 0n && un_ret !== 0xffffffffffffffffn) {
             log("[WARN] unlink existing " + file_name + " returned " + toHex(un_ret));
@@ -668,30 +706,37 @@ async function updateIcon() {
       }
   }
 
-  const updatePaths = [];
-  for (let i = 0; i <= 7; i++) {
-      updatePaths.push(`/mnt/usb${i}/y2jb_update.zip`);
-      updatePaths.push(`/mnt/usb${i}/ps5_autoloader/y2jb_update.zip`);
-  }
-  updatePaths.push("/data/y2jb_update.zip");
-  updatePaths.push("/data/ps5_autoloader/y2jb_update.zip");
-
-  async function update() {
-    let updateFound = false;
-    let updatePath = null;
-    for (const path of updatePaths) {
-      if (file_exists(path)) {
-        log("Found Y2JB update file at: " + path);
-        send_notification("Found Y2JB update file at: " + path);
-        updateFound = true;
-        updatePath = path;
-          break;
+  function get_potential_update_paths() {
+    const paths = [];
+    for (let i = 0; i <= 7; i++) {
+      const usbBase = `/mnt/usb${i}`;
+      // probe the mountpoint itself first - file_exists on deep paths of an
+      // unmounted port can hang; skipping unmounted ports speeds the search up
+      if (file_exists(usbBase)) {
+        paths.push(`${usbBase}/y2jb_update.zip`);
+        paths.push(`${usbBase}/ps5_autoloader/y2jb_update.zip`);
       }
     }
+    paths.push('/data/y2jb_update.zip');
+    paths.push('/data/ps5_autoloader/y2jb_update.zip');
+    return paths;
+  }
 
-      if (!updateFound) {
+  function find_update_file() {
+    for (const path of get_potential_update_paths()) {
+      if (file_exists(path)) return path;
+    }
+    return null;
+  }
+
+  async function update() {
+    const updatePath = find_update_file();
+
+      if (!updatePath) {
         log("No Y2JB update file found");
       } else {
+        log("Found Y2JB update file at: " + updatePath);
+        send_notification("Found Y2JB update file at: " + updatePath);
         log("Starting Y2JB update from: " + updatePath);
         if (typeof window.updateProgress === 'function') {
             window.updateProgress(50, "Updating Y2JB...");
@@ -894,7 +939,7 @@ async function updateIcon() {
 
   async function cleanUp(remove_update_packages) {
       if (remove_update_packages) {
-          for (const path of updatePaths) {
+          for (const path of get_potential_update_paths()) {
               if (file_exists(path)) {
                   const path_addr = alloc_string(path);
                   const ret = syscall(SYSCALL.unlink, path_addr);

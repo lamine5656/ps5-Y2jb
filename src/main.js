@@ -751,28 +751,7 @@ function get_cobalt_buildnumber() {
     await load_localscript('global.js');
 })();
 
-let NETWORK_LOGGING = false;
-// Use setlogserver.js payload to change server url at runtime
-let LOG_SERVER = 'http://192.168.1.180:8080/log';
-
-async function checkLogServer() {
-    try {
-        const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Timeout')), 250)
-        );
-        
-        const fetchPromise = fetch(LOG_SERVER, {
-            method: 'POST',
-            body: 'Log server check from Y2JB'
-        });
-        
-        await Promise.race([fetchPromise, timeoutPromise]);
-        
-        NETWORK_LOGGING = true;
-    } catch (e) {
-        NETWORK_LOGGING = false;
-    }
-}
+// perf: checkLogServer() removed (itsPLK 0efdf65) - eliminates the boot log-server probe timeout
 
 const baseWidth = 1920;
 const baseHeight = 1080;
@@ -827,15 +806,6 @@ async function log(msg) {
     
     // yield one microtask so callers keep their async flow without forcing a paint
     await Promise.resolve();
-        
-    if (NETWORK_LOGGING) {
-        try {
-            await fetch(LOG_SERVER, {
-                method: 'POST',
-                body: message,
-            });
-        } catch (e) { }
-    }
 }
 
 function toHex(num) {
@@ -2147,8 +2117,6 @@ function trigger() {
             }
         };
 
-        await checkLogServer();
-
         if (Y2_OFFSET === Y2_OFFSET_403) {
             // Thanks ufm42 for better implementation
             await log("Disabling PSN dialog and YouTube splash...");
@@ -2303,7 +2271,6 @@ function trigger() {
         if (typeof window.updateProgress === 'function') {
             window.updateProgress(90, "Sending payloads...");
         }
-        await sleep(700);
         await start_autoload();
 
         if (typeof window.updateProgress === 'function') {

@@ -1,4 +1,4 @@
-VERSION    := 1.3.1# Git info for versioning
+VERSION    := 1.3.2# Git info for versioning
 GIT_HASH   := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 GIT_DIRTY  := $(shell git status --porcelain 2>/dev/null)
 BUILD_TYPE ?= dev
