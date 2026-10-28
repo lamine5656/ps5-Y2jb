@@ -12,7 +12,9 @@ while [[ "$#" -gt 0 ]]; do
         --stable) BUILD_TYPE="stable" ;;
         --dev) BUILD_TYPE="dev" ;;
         --build-deps|-b) DEP_ACTION="build" ;;
-        --download-deps|-d) DEP_ACTION="download" ;;
+        --download-deps|-d)
+            echo "Note: dependencies are bundled in src/, nothing to download."
+            DEP_ACTION="auto" ;;
         *) echo "Unknown parameter passed: $1"; exit 1 ;;
     esac
     shift
@@ -70,33 +72,21 @@ build_source_deps() {
     echo "Source build complete."
 }
 
-# Helper to download dependencies
-download_prebuilt_deps() {
-    echo "=== Downloading dependencies from GitHub releases ==="
-    ./scripts/download_deps.sh
+# Dependencies are bundled in src/ - no download or submodule checkout needed
+use_bundled_deps() {
+    FOUND=$(ls "$DEST_DIR"/kexp-*.bin "$DEST_DIR"/elfldr-ps5-*.elf "$DEST_DIR"/ps5-unified-autoloader.elf 2>/dev/null | wc -l | tr -d ' ')
+    if [ "$FOUND" -lt 3 ]; then
+        echo "Error: bundled binaries missing from $DEST_DIR/ (need kexp-*.bin, elfldr-ps5-*.elf and ps5-unified-autoloader.elf)." >&2
+        exit 1
+    fi
+    echo "Using bundled dependencies from $DEST_DIR."
 }
 
 # Resolve dependency action
-if [ "$DEP_ACTION" = "download" ]; then
-    download_prebuilt_deps
-elif [ "$DEP_ACTION" = "build" ]; then
+if [ "$DEP_ACTION" = "build" ]; then
     build_source_deps
 else
-    # Auto mode: check if binaries exist
-    HAS_KEXP=$(ls "$DEST_DIR"/kexp-*.bin 2>/dev/null | head -n 1)
-    HAS_ELFLDR=$(ls "$DEST_DIR"/elfldr-ps5-*.elf 2>/dev/null | head -n 1)
-    HAS_AUTOLOADER=$(ls "$DEST_DIR"/ps5-unified-autoloader.elf 2>/dev/null | head -n 1)
-    
-    if [ -n "$HAS_KEXP" ] && [ -n "$HAS_ELFLDR" ] && [ -n "$HAS_AUTOLOADER" ]; then
-        echo "Dependencies already present."
-    else
-        # If submodules checked out, build from source
-        if [ -e "third_party/ps5-elfldr/.git" ] && [ -e "third_party/ps5-kexp/.git" ] && [ -e "third_party/ps5-unified-autoloader/.git" ]; then
-            build_source_deps
-        else
-            download_prebuilt_deps
-        fi
-    fi
+    use_bundled_deps
 fi
 
 echo "Creating Y2JB update package..."
