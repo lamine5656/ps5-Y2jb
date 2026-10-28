@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.3.5-l92 (light autoloader, HyperHEN launched from file)
+- **Fix CE-108255-1** (app crash on jailbreak): the autoloader had grown to 12.68 MB with the embedded HyperHEN — the browser-side JS reads that ELF fully into memory and crashed. The autoloader is rebuilt as **v0.1.10-l92, back to 2.91 MB**: HyperHEN is **NOT embedded anymore**, it is launched **from the file next to autoload.txt** (or found in `/mnt/usb*/ps5_autoloader/` and `/data/ps5_autoloader/`), still automatically, still before your other payloads
+- `hyperhen.elf` entries in `autoload.txt` are still skipped (already auto-launched) — leave the file on the USB stick, keep the line or remove it, both fine
+
 ## v1.3.4-l92 (no more double HyperHEN)
 - **Fix "hypercore stopped"**: `hyperhen.elf` listed in `autoload.txt` was launched a second time while the embedded one had already launched -> the fix skips any `hyperhen.elf` entry in `autoload.txt` (notification confirms "already auto-launched")
 - **Embedded HyperHEN updated** to your newer build (D:\Ps5\HyperHEN.elf, 9.77 MB, 2026-10-19) - unified-autoloader rebuilt as **v0.1.9-l92** (12.68 MB ELF)
