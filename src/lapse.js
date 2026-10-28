@@ -23,7 +23,7 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-(async function() {
+async function start_lapse() {
     try {
         const lapse_version = "Y2JB Lapse 2.0 by Gezine";
         
@@ -1702,24 +1702,23 @@
         ////////////////////
         
         await log(lapse_version);
-        send_notification(lapse_version);
         
         if(typeof load_aioshellcode === "undefined") {
-            await log("Update Y2JB to at least 1.5 version");
-            send_notification("Update Y2JB to at least 1.5 version");
-            return;
+            await log("Update Y2JB to at least 1.4 version");
+            send_notification("Update Y2JB to at least 1.4 version");
+            return false;
         }
         
         if (compare_version(FW_VERSION, "10.01") > 0) {
             await log("Unsupported fw " + FW_VERSION);
             send_notification("Unsupported fw " + FW_VERSION);
-            return;
+            return false;
         }
         
         if(is_jailbroken()) {
             await log("Already Jailbroken");
             send_notification("Already Jailbroken");
-            return;
+            return false;
         }
         
         failcheck_path = "/" + get_nidpath() + "/common_temp/lapse.fail";
@@ -1727,7 +1726,15 @@
         if(file_exists(failcheck_path)) {
             await log("Restart your PS5 to run Lapse again");
             send_notification("Restart your PS5 to run Lapse again");
-            return;
+
+            await kill_youtube();
+
+            return false;
+        }
+
+        await log(lapse_version);
+        if (typeof window.uiLog === 'function') {
+            window.uiLog(lapse_version);
         }
         
         write_file(failcheck_path, "");
@@ -1736,7 +1743,7 @@
         const setup_success = await setup();
         if (!setup_success) {
             await log("Setup failed");
-            return;
+            return false;
         }
         
         await log("Setup completed");
@@ -1749,7 +1756,7 @@
                 await cleanup();
                 await log("Exploit failed - Reboot and try again");
                 send_notification("Exploit failed - Reboot and try again");
-                return;
+                return false;
             }
             await log("Stage 1 completed");
             
@@ -1760,7 +1767,7 @@
                 await cleanup();
                 await log("Exploit failed - Reboot and try again");
                 send_notification("Exploit failed - Reboot and try again");
-                return;
+                return false;
             }
             await log("Stage 2 completed");
             
@@ -1791,7 +1798,7 @@
                 await cleanup();
                 await log("Exploit failed - Reboot and try again");
                 send_notification("Exploit failed - Reboot and try again");
-                return;
+                return false;
             }
             
             await log("Stage 3 completed!");
@@ -1813,7 +1820,7 @@
                 await cleanup();
                 await log("Exploit failed - Reboot and try again");
                 send_notification("Exploit failed - Reboot and try again");
-                return;
+                return false;
             }
             
             await log("Stage 4 completed!");
@@ -1826,19 +1833,19 @@
             await cleanup();
             
             await log("Lapse finished");
-            send_notification("Lapse finished");
-            
-            kill_youtube();
+            return true;
             
         } catch (e) {
             await log("Lapse error: " + e.message);
             await log(e.stack);
             
             await cleanup();
+            return false;
         }
         
     } catch (e) {
         await log("Lapse error: " + e.message);
         await log(e.stack);
+        return false;
     }
-})();
+}

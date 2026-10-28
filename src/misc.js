@@ -214,50 +214,30 @@ function find_pattern(buffer, pattern_string) {
 }
 
 function get_current_ip() {
-    // Get interface count
-    const count = Number(syscall(SYSCALL.netgetiflist, 0n, 10n));
-    if (count < 0) {
-        return null;
-    }
-    
-    // Allocate buffer for interfaces
-    const iface_size = 0x1e0;
-    const iface_buf = malloc(iface_size * count);
-    
-    // Get interface list
-    if (Number(syscall(SYSCALL.netgetiflist, iface_buf, BigInt(count))) < 0) {
-        return null;
-    }
-    
-    // Parse interfaces
-    for (let i = 0; i < count; i++) {
-        const offset = BigInt(i * iface_size);
-        
-        // Read interface name (null-terminated string at offset 0)
-        let iface_name = "";
-        for (let j = 0; j < 16; j++) {
-            const c = Number(read8(iface_buf + offset + BigInt(j)));
-            if (c === 0) break;
-            iface_name += String.fromCharCode(c);
+    try {
+        const RECORD = 0x3c0;
+        const IP = 40;
+        const count = Number(syscall(SYSCALL.netgetiflist, 0n, 10n));
+        if (count <= 0 || count > 256) return null;
+        const list = malloc(RECORD * count);
+        if (Number(syscall(SYSCALL.netgetiflist, list, BigInt(count))) < 0) return null;
+        for (let i = 0; i < count; i++) {
+            const octets = [];
+            for (let b = 0; b < 4; b++) {
+                octets.push(Number(read8(list + BigInt(RECORD * i + IP + b))));
+            }
+            if (octets.some((o) => o !== 0)) {
+                return octets.join(".");
+            }
         }
-        
-        // Read IP address (4 bytes at offset 0x28)
-        const ip_offset = offset + 0x28n;
-        const ip1 = Number(read8(iface_buf + ip_offset));
-        const ip2 = Number(read8(iface_buf + ip_offset + 1n));
-        const ip3 = Number(read8(iface_buf + ip_offset + 2n));
-        const ip4 = Number(read8(iface_buf + ip_offset + 3n));
-        const iface_ip = ip1 + "." + ip2 + "." + ip3 + "." + ip4;
-        
-        // Check if this is eth0 or wlan0 with valid IP
-        if ((iface_name === "eth0" || iface_name === "wlan0") && 
-            iface_ip !== "0.0.0.0" && iface_ip !== "127.0.0.1") {
-            return iface_ip;
-        }
-    }
-    
+    } catch (_) { }
     return null;
 }
+
+function has_network_interface() {
+    return get_current_ip() !== null;
+}
+
 
 function is_jailbroken() {
 
@@ -472,6 +452,16 @@ function nanosleep(nsec) {
     syscall(SYSCALL.nanosleep, timespec);
 }
 
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function kill_youtube(delay_ms = 5000) {
+    await sleep(delay_ms);
+    const pid = syscall(SYSCALL.getpid);
+    syscall(SYSCALL.kill, pid, SIGKILL);
+}
+
 async function send_network(ip_address, port, sock_type, buffer) {
     const sockaddr_in = malloc(16);
     const buf_ptr = malloc(buffer.length);
@@ -522,7 +512,203 @@ async function send_network(ip_address, port, sock_type, buffer) {
     syscall(SYSCALL.close, sock_fd);
 }
 
-function kill_youtube() {
-    const pid = syscall(SYSCALL.getpid);
-    syscall(SYSCALL.kill, pid, SIGKILL);
+function kill_progress_overlay() {
+    if (window.progressOverlayInterval) {
+        clearInterval(window.progressOverlayInterval);
+        window.progressOverlayInterval = null;
+    }
+    const el = document.getElementById("progress_overlay");
+    if (el) {
+        el.parentNode.removeChild(el);
+    }
+    if (window.uiLog && window.uiLog._isWrapped) {
+        window.uiLog = window.uiLog._original;
+    }
+    if (window.log && window.log._isWrapped) {
+        window.log = window.log._original;
+    }
 }
+
+function start_progress_overlay(total_minutes) {
+    kill_progress_overlay();
+
+    if (!document.getElementById("nl_style")) {
+        const style = document.createElement("style");
+        style.id = "nl_style";
+        style.textContent = [
+            "@keyframes nlShimmer { 0% { background-position: 0% 0;} 100% { background-position: 300% 0;} }",
+            "@keyframes nlPulse { 0%,100% { opacity:1; transform: scale(1);} 50% { opacity:.35; transform: scale(.7);} }"
+        ].join("\n");
+        document.head.appendChild(style);
+    }
+
+    const baseWidth = 1920;
+    const scale = window.innerWidth / baseWidth;
+
+    const overlay = document.createElement("div");
+    overlay.id = "progress_overlay";
+    overlay.style.position = "fixed";
+    overlay.style.top = "0px";
+    overlay.style.left = "0px";
+    overlay.style.width = "100%";
+    overlay.style.height = "100%";
+    overlay.style.backgroundColor = "rgba(3,4,18,0.97)";
+    overlay.style.zIndex = "100000";
+    overlay.style.fontFamily = "Arial, Helvetica, sans-serif";
+    overlay.style.userSelect = "none";
+
+    const scaleContainer = document.createElement("div");
+    scaleContainer.id = "progress_scale_container";
+    scaleContainer.style.position = "absolute";
+    scaleContainer.style.top = "0px";
+    scaleContainer.style.left = "0px";
+    scaleContainer.style.width = "1920px";
+    scaleContainer.style.height = "1080px";
+    scaleContainer.style.transform = "scale(" + scale + ")";
+    scaleContainer.style.transformOrigin = "top left";
+    overlay.appendChild(scaleContainer);
+
+    // Ambient auras
+    const auraA = document.createElement("div");
+    auraA.style.position = "absolute";
+    auraA.style.top = "40px";
+    auraA.style.left = "-120px";
+    auraA.style.width = "760px";
+    auraA.style.height = "760px";
+    auraA.style.borderRadius = "50%";
+    auraA.style.background = "radial-gradient(circle, rgba(0,229,255,.16) 0%, rgba(0,229,255,0) 65%)";
+    scaleContainer.appendChild(auraA);
+
+    const auraB = document.createElement("div");
+    auraB.style.position = "absolute";
+    auraB.style.bottom = "-140px";
+    auraB.style.right = "-120px";
+    auraB.style.width = "820px";
+    auraB.style.height = "820px";
+    auraB.style.borderRadius = "50%";
+    auraB.style.background = "radial-gradient(circle, rgba(255,43,214,.14) 0%, rgba(255,43,214,0) 65%)";
+    scaleContainer.appendChild(auraB);
+
+    const contentBox = document.createElement("div");
+    contentBox.id = "progress_box";
+    contentBox.style.position = "absolute";
+    contentBox.style.width = "760px";
+    contentBox.style.padding = "44px 48px 40px 48px";
+    contentBox.style.backgroundColor = "rgba(6,10,26,.82)";
+    contentBox.style.border = "1px solid rgba(0,229,255,.4)";
+    contentBox.style.borderRadius = "20px";
+    contentBox.style.boxShadow = "0 0 44px rgba(0,229,255,.22), inset 0 0 60px rgba(0,229,255,.04)";
+    contentBox.style.textAlign = "center";
+    scaleContainer.appendChild(contentBox);
+
+    const statusDot = document.createElement("div");
+    statusDot.style.width = "20px";
+    statusDot.style.height = "20px";
+    statusDot.style.borderRadius = "50%";
+    statusDot.style.backgroundColor = "#00e5ff";
+    statusDot.style.boxShadow = "0 0 18px rgba(0,229,255,.95)";
+    statusDot.style.margin = "0 auto 18px auto";
+    statusDot.style.animation = "nlPulse 1.4s ease-in-out infinite";
+
+    const title = document.createElement("div");
+    title.textContent = "KERNEL EXPLOIT IN PROGRESS...";
+    title.style.fontSize = "32px";
+    title.style.fontWeight = "bold";
+    title.style.color = "#eaf6ff";
+    title.style.letterSpacing = "4px";
+    title.style.textShadow = "0 0 26px rgba(0,229,255,.7)";
+    title.style.marginBottom = "10px";
+    contentBox.appendChild(statusDot);
+    contentBox.appendChild(title);
+
+    const subtitle = document.createElement("div");
+    subtitle.textContent = "Please keep the console powered on";
+    subtitle.style.fontSize = "19px";
+    subtitle.style.color = "rgba(159,179,209,.75)";
+    subtitle.style.letterSpacing = "2px";
+    subtitle.style.marginBottom = "28px";
+    contentBox.appendChild(subtitle);
+
+    const progressBarContainer = document.createElement("div");
+    progressBarContainer.style.width = "640px";
+    progressBarContainer.style.height = "26px";
+    progressBarContainer.style.backgroundColor = "rgba(10,16,38,.9)";
+    progressBarContainer.style.border = "1px solid rgba(0,229,255,.35)";
+    progressBarContainer.style.borderRadius = "13px";
+    progressBarContainer.style.overflow = "hidden";
+    progressBarContainer.style.margin = "0 auto 24px auto";
+    contentBox.appendChild(progressBarContainer);
+
+    const progressBar = document.createElement("div");
+    progressBar.style.width = "0%";
+    progressBar.style.height = "100%";
+    progressBar.style.borderRadius = "13px";
+    progressBar.style.background = "linear-gradient(90deg, #00e5ff, #7aa8ff, #ff2bd6, #00e5ff)";
+    progressBar.style.backgroundSize = "300% 100%";
+    progressBar.style.animation = "nlShimmer 3.5s linear infinite";
+    progressBarContainer.appendChild(progressBar);
+
+    const statusText = document.createElement("div");
+    statusText.style.fontSize = "24px";
+    statusText.style.color = "#9fe8ff";
+    statusText.style.letterSpacing = "1px";
+    contentBox.appendChild(statusText);
+
+    let elapsed = 0;
+
+    function randomize_position() {
+        const topVal = Math.floor(Math.random() * 50) + 20;
+        const leftVal = Math.floor(Math.random() * 50) + 15;
+        contentBox.style.top = topVal + "%";
+        contentBox.style.left = leftVal + "%";
+    }
+
+    function update_display() {
+        const percent = Math.min(99, Math.round((elapsed / total_minutes) * 100));
+        progressBar.style.width = percent + "%";
+        
+        if (elapsed >= total_minutes) {
+            statusText.textContent = "Still loading, please wait... (99%)";
+        } else {
+            const remaining = total_minutes - elapsed;
+            statusText.textContent = "Approximately ~" + remaining + " minutes remaining... (" + percent + "%)";
+        }
+        
+        randomize_position();
+    }
+
+    randomize_position();
+    update_display();
+
+    window.progressOverlayInterval = setInterval(() => {
+        elapsed++;
+        update_display();
+    }, 60000);
+
+    const orig_uiLog = window.uiLog;
+    const orig_log = window.log;
+
+    const wrapped_uiLog = function(...args) {
+        kill_progress_overlay();
+        if (typeof orig_uiLog === "function") {
+            return orig_uiLog.apply(this, args);
+        }
+    };
+    wrapped_uiLog._isWrapped = true;
+    wrapped_uiLog._original = orig_uiLog;
+
+    const wrapped_log = function(...args) {
+        kill_progress_overlay();
+        if (typeof orig_log === "function") {
+            return orig_log.apply(this, args);
+        }
+    };
+    wrapped_log._isWrapped = true;
+    wrapped_log._original = orig_log;
+
+    window.uiLog = wrapped_uiLog;
+    window.log = wrapped_log;
+
+    document.body.appendChild(overlay);
+}
+

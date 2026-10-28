@@ -1,6 +1,6 @@
 
-let BIN_NAME    = "kexp_2026_05_25.bin";
-let ELFLDR_NAME = "elfldr-ps5-1360.elf";
+let BIN_NAME    = "@@KEXP_FILE@@";
+let ELFLDR_NAME = "@@ELFLDR_FILE@@";
 
 let elfldr_addr = 0n;
 let elfldr_size = 0n;
@@ -86,7 +86,7 @@ async function load_elfldr() {
     write_buffer(elfldr_addr, elfldr_data);
     elfldr_size = BigInt(elfldr_data.length);
 
-    await log("elfldr @ " + toHex(elfldr_addr) + " size: 0x" + elfldr_size.toString(16));
+    await log("elfldr (" + ELFLDR_NAME + ") @ " + toHex(elfldr_addr) + " size: 0x" + elfldr_size.toString(16));
 }
 
 async function load_bin() {
@@ -96,7 +96,7 @@ async function load_bin() {
     }
 
     const bin_data = read_file(path);
-    await log("Bin size: " + bin_data.length + " (0x" + bin_data.length.toString(16) + ")");
+    await log("Bin size: " + bin_data.length + " (0x" + bin_data.length.toString(16) + ") from " + BIN_NAME);
 
     const entry_addr = await map_shellcode(bin_data);
     await run_shellcode(entry_addr);
@@ -115,4 +115,3 @@ async function load_aioshellcode(arg_allproc, arg_master_pipe, arg_victim_pipe) 
     await load_elfldr();
     await load_bin();
 }
-
