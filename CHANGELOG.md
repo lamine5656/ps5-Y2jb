@@ -10,6 +10,7 @@
 - Version bump to 1.3.0 for the new baseline
 - Branding: HUD/updater lines, credits, funding and release notes now credit L92 only; per-file third-party copyright notices are kept in `THIRD_PARTY_NOTICES.md`
 - Build: `scripts/download_deps.sh` removed and `--download-deps` turned into a no-op note — `build.sh` now verifies and uses the bundled binaries
+- Build: `build.sh` executable bit restored (it was committed as 100644, which made `./build.sh` fail with exit code 126 in CI)
 
 ## v1.2.4-l92 (hover background attempt)
 - splash_screen cache only contained loader files -> hover background is not there
